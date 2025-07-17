@@ -43,3 +43,7 @@ coverage/
 # Database
 *.db
 *.sqlite
+
+# Temporary files
+*.tmp
+*.temp
