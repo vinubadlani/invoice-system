@@ -166,7 +166,7 @@ export default function PartyPage() {
       {
         key: "opening_balance",
         label: "Opening Balance",
-        render: (value: number) => `₹${value.toLocaleString()}`,
+        render: (value: number) => `₹${(value || 0).toLocaleString()}`,
       },
     ],
     []

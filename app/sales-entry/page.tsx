@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { supabase } from "@/lib/supabase"
 import { useOptimizedData } from "@/lib/cache-store"
-import { Plus, Edit, Trash2, Save, X, Loader2, Search, Calculator, Receipt, FileText, Building2 } from "lucide-react"
+import { Plus, Edit, Trash2, Save, X, Loader2, Search, Calculator, Receipt, FileText, Building2, Printer, Eye, Copy, Share2, Download, Users, Package2, Calendar, MapPin, Phone, Mail, CreditCard, Percent, Hash, AlignLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,6 +14,8 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Textarea } from "@/components/ui/textarea"
+import { Switch } from "@/components/ui/switch"
 import AuthenticatedLayout from "@/components/AuthenticatedLayout"
 import DataTable from "@/components/DataTable"
 import { useToast } from "@/hooks/use-toast"
@@ -389,7 +391,7 @@ export default function SalesEntry() {
         <Edit className="h-4 w-4" />
       </Button>
       <Button variant="ghost" size="sm" onClick={() => window.open(`/print?id=${invoice.id}`, '_blank')}>
-        <FileText className="h-4 w-4" />
+        <Printer className="h-4 w-4" />
       </Button>
     </div>
   ), [handleEdit])
@@ -406,399 +408,543 @@ export default function SalesEntry() {
 
   return (
     <AuthenticatedLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 bg-gray-50 dark:bg-gray-900 min-h-screen p-6">
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-              <Receipt className="h-8 w-8 text-blue-600" />
-              Sales Entry
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-3">
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-3 rounded-xl shadow-lg">
+                <Receipt className="h-8 w-8 text-white" />
+              </div>
+              Invoice Maker
             </h1>
-            <p className="text-gray-600 mt-1">Create and manage sales invoices</p>
+            <p className="text-gray-600 dark:text-gray-400 mt-2">Create professional invoices in seconds</p>
           </div>
-          <Button onClick={() => setIsFormOpen(true)} disabled={saving} size="lg">
-            <Plus className="h-5 w-5 mr-2" />
-            New Invoice
-          </Button>
+          <div className="flex gap-3">
+            <Button variant="outline" size="lg" className="gap-2">
+              <Eye className="h-5 w-5" />
+              Preview
+            </Button>
+            <Button onClick={() => setIsFormOpen(true)} disabled={saving} size="lg" className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 gap-2">
+              <Plus className="h-5 w-5" />
+              New Invoice
+            </Button>
+          </div>
         </div>
 
-        {/* Form */}
-        {isFormOpen && (
-          <Card className="shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                {editingInvoice ? "Edit Sales Invoice" : "Create New Invoice"}
-              </CardTitle>
-            </CardHeader>
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <Card className="bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0">
             <CardContent className="p-6">
-              <form onSubmit={handleSubmit} className="space-y-8">
-                {/* Business Header */}
-                {business && (
-                  <Card className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3">
-                          <Building2 className="h-8 w-8" />
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-green-100 text-sm">Total Sales</p>
+                  <p className="text-2xl font-bold">₹2,45,000</p>
+                </div>
+                <Receipt className="h-8 w-8 text-green-200" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-r from-blue-500 to-cyan-600 text-white border-0">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-blue-100 text-sm">This Month</p>
+                  <p className="text-2xl font-bold">₹45,000</p>
+                </div>
+                <Calendar className="h-8 w-8 text-blue-200" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-r from-purple-500 to-pink-600 text-white border-0">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-purple-100 text-sm">Pending</p>
+                  <p className="text-2xl font-bold">₹15,000</p>
+                </div>
+                <CreditCard className="h-8 w-8 text-purple-200" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-r from-orange-500 to-red-600 text-white border-0">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-orange-100 text-sm">Invoices</p>
+                  <p className="text-2xl font-bold">156</p>
+                </div>
+                <FileText className="h-8 w-8 text-orange-200" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Invoice Creation Form */}
+        {isFormOpen && (
+          <div className="max-w-7xl mx-auto">
+            <Card className="shadow-2xl border-0 overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-slate-900 to-slate-800 text-white">
+                <div className="flex justify-between items-center">
+                  <CardTitle className="flex items-center gap-3 text-xl">
+                    <FileText className="h-6 w-6" />
+                    {editingInvoice ? "Edit Invoice" : "Create New Invoice"}
+                  </CardTitle>
+                  <div className="flex gap-2">
+                    <Button variant="secondary" size="sm" className="gap-2">
+                      <Copy className="h-4 w-4" />
+                      Duplicate
+                    </Button>
+                    <Button variant="secondary" size="sm" className="gap-2">
+                      <Share2 className="h-4 w-4" />
+                      Share
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={resetForm}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-0">
+                <form onSubmit={handleSubmit} className="space-y-0">
+                  {/* Invoice Header Section */}
+                  <div className="bg-white dark:bg-gray-800 p-8 border-b border-gray-200 dark:border-gray-700">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      {/* Business Info */}
+                      <div className="space-y-6">
+                        <div className="flex items-center gap-4">
+                          <div className="bg-blue-600 p-3 rounded-xl">
+                            <Building2 className="h-8 w-8 text-white" />
+                          </div>
                           <div>
-                            <h2 className="text-2xl font-bold">{business.name}</h2>
-                            <p className="text-blue-100 mt-1">
-                              {business.address}, {business.city}, {business.state} - {business.pincode}
-                            </p>
+                            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                              {business?.name || "Your Business Name"}
+                            </h2>
+                            <p className="text-gray-600 dark:text-gray-400">Professional Invoice</p>
                           </div>
                         </div>
-                        <div className="text-right text-sm text-blue-100">
-                          <p>Phone: {business.phone}</p>
-                          <p>Email: {business.email}</p>
-                          {business.gstin && <p>GSTIN: {business.gstin}</p>}
-                          {business.pan && <p>PAN: {business.pan}</p>}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Invoice Header */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div>
-                    <Label htmlFor="invoice_no" className="text-sm font-medium">Invoice Number *</Label>
-                    <Input
-                      id="invoice_no"
-                      required
-                      value={formData.invoice_no}
-                      onChange={(e) => setFormData(prev => ({ ...prev, invoice_no: e.target.value }))}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="date" className="text-sm font-medium">Invoice Date *</Label>
-                    <Input
-                      id="date"
-                      type="date"
-                      required
-                      value={formData.date}
-                      onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="party_id" className="text-sm font-medium">Customer *</Label>
-                    <Select
-                      value={formData.party_id}
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, party_id: value }))}
-                    >
-                      <SelectTrigger className="mt-1">
-                        <SelectValue placeholder="Select Customer" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {parties.map((party) => (
-                          <SelectItem key={party.id} value={party.id}>
-                            <div className="flex flex-col">
-                              <span className="font-medium">{party.name}</span>
-                              <span className="text-xs text-gray-500">{party.city}, {party.state}</span>
+                        
+                        {business && (
+                          <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg space-y-2">
+                            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                              <MapPin className="h-4 w-4" />
+                              <span>{business.address}, {business.city}, {business.state} - {business.pincode}</span>
                             </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Customer Details */}
-                {selectedParty && (
-                  <Card className="bg-gray-50 border-dashed">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="font-semibold text-gray-700">Bill To:</span>
+                            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                              <Phone className="h-4 w-4" />
+                              <span>{business.phone}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                              <Mail className="h-4 w-4" />
+                              <span>{business.email}</span>
+                            </div>
+                            {business.gstin && (
+                              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                                <Hash className="h-4 w-4" />
+                                <span>GSTIN: {business.gstin}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <p className="font-medium text-gray-900">{selectedParty.name}</p>
-                          <p className="text-gray-600 mt-1">{selectedParty.address}</p>
-                          <p className="text-gray-600">{selectedParty.city}, {selectedParty.state}</p>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-700">GSTIN:</span>
-                          <p className="text-gray-600">{selectedParty.gstin || "Not provided"}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
 
-                <Separator />
-
-                {/* Add Items Section */}
-                <div>
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <Plus className="h-5 w-5" />
-                    Add Items
-                  </h3>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 bg-gray-50 rounded-lg">
-                    <div>
-                      <Label className="text-sm font-medium">Item *</Label>
-                      <Popover open={itemSearchOpen} onOpenChange={setItemSearchOpen}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            role="combobox"
-                            aria-expanded={itemSearchOpen}
-                            className="w-full justify-between mt-1"
-                          >
-                            {currentItem.item_id
-                              ? items.find(item => item.id === currentItem.item_id)?.name
-                              : "Select item..."}
-                            <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[300px] p-0">
-                          <Command>
-                            <CommandInput 
-                              placeholder="Search items..." 
-                              value={itemSearchValue}
-                              onValueChange={setItemSearchValue}
+                      {/* Invoice Details */}
+                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-6 rounded-xl space-y-4">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Invoice Details</h3>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Invoice Number</Label>
+                            <Input
+                              value={formData.invoice_no}
+                              onChange={(e) => setFormData(prev => ({ ...prev, invoice_no: e.target.value }))}
+                              className="mt-1 bg-white dark:bg-gray-800"
+                              placeholder="INV-001"
                             />
-                            <CommandList>
-                              <CommandEmpty>No item found.</CommandEmpty>
-                              <CommandGroup>
-                                {filteredItems.map((item) => (
-                                  <CommandItem
-                                    key={item.id}
-                                    value={item.id}
-                                    onSelect={() => {
-                                      setCurrentItem(prev => ({ 
-                                        ...prev, 
-                                        item_id: item.id, 
-                                        rate: item.sales_price.toString()
-                                      }))
-                                      setItemSearchOpen(false)
-                                    }}
-                                  >
-                                    <div className="flex flex-col">
-                                      <span className="font-medium">{item.name}</span>
-                                      <span className="text-xs text-gray-500">
-                                        {item.code} | ₹{item.sales_price} | {item.unit}
-                                      </span>
-                                    </div>
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    
-                    <div>
-                      <Label className="text-sm font-medium">Quantity *</Label>
-                      <Input
-                        type="text"
-                        placeholder="1"
-                        value={currentItem.qty}
-                        onChange={(e) => setCurrentItem(prev => ({ ...prev, qty: e.target.value }))
-                        }
-                        className="mt-1"
-                      />
-                    </div>
-                    
-                    <div>
-                      <Label className="text-sm font-medium">Rate *</Label>
-                      <Input
-                        type="text"
-                        placeholder="0.00"
-                        value={currentItem.rate}
-                        onChange={(e) => setCurrentItem(prev => ({ ...prev, rate: e.target.value }))
-                        }
-                        className="mt-1"
-                      />
-                    </div>
-                    
-                    <div className="flex items-end">
-                      <Button 
-                        type="button" 
-                        onClick={addItemToInvoice} 
-                        disabled={!currentItem.item_id || saving}
-                        className="w-full"
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Item
-                      </Button>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Invoice Date</Label>
+                            <Input
+                              type="date"
+                              value={formData.date}
+                              onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                              className="mt-1 bg-white dark:bg-gray-800"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Due Date</Label>
+                          <Input
+                            type="date"
+                            value={new Date(new Date(formData.date).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+                            className="mt-1 bg-white dark:bg-gray-800"
+                            readOnly
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Items Table */}
-                {invoiceItems.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-semibold mb-4">Invoice Items</h3>
-                    <div className="border rounded-lg overflow-hidden">
-                      <Table>
-                        <TableHeader className="bg-gray-50">
-                          <TableRow>
-                            <TableHead className="w-[300px]">Item Details</TableHead>
-                            <TableHead>HSN</TableHead>
-                            <TableHead>Qty</TableHead>
-                            <TableHead>Rate</TableHead>
-                            <TableHead>GST</TableHead>
-                            <TableHead>Tax Amount</TableHead>
-                            <TableHead>Total</TableHead>
-                            <TableHead className="w-[100px]">Action</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {invoiceItems.map((item) => (
-                            <TableRow key={item.id}>
-                              <TableCell>
-                                <div className="flex flex-col">
-                                  <span className="font-medium">{item.item_name}</span>
-                                  <span className="text-xs text-gray-500">{item.item_code}</span>
-                                </div>
-                              </TableCell>
-                              <TableCell>{item.hsn}</TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-1">
-                                  <Input
-                                    type="text"
-                                    value={item.qty}
-                                    onChange={(e) => updateItemQuantity(item.id, e.target.value)}
-                                    className="w-16 text-center"
-                                  />
-                                  <span className="text-xs text-gray-500">{item.unit}</span>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <Input
-                                  type="text"
-                                  value={item.rate}
-                                  onChange={(e) => updateItemRate(item.id, e.target.value)}
-                                  className="w-20"
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="outline">{item.gst_percent}%</Badge>
-                              </TableCell>
-                              <TableCell>₹{item.tax_amount.toFixed(2)}</TableCell>
-                              <TableCell>
-                                <span className="font-medium">₹{item.total.toFixed(2)}</span>
-                              </TableCell>
-                              <TableCell>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => removeItemFromInvoice(item.id)}
-                                  disabled={saving}
-                                >
-                                  <Trash2 className="h-4 w-4 text-red-500" />
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                  {/* Customer Selection */}
+                  <div className="bg-white dark:bg-gray-800 p-8 border-b border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center gap-3 mb-6">
+                      <Users className="h-6 w-6 text-blue-600" />
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Bill To</h3>
                     </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Select Customer</Label>
+                        <Select
+                          value={formData.party_id}
+                          onValueChange={(value) => setFormData(prev => ({ ...prev, party_id: value }))}
+                        >
+                          <SelectTrigger className="mt-1 h-12 bg-white dark:bg-gray-800">
+                            <SelectValue placeholder="Choose a customer..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {parties.map((party) => (
+                              <SelectItem key={party.id} value={party.id}>
+                                <div className="flex flex-col py-1">
+                                  <span className="font-medium">{party.name}</span>
+                                  <span className="text-xs text-gray-500">{party.city}, {party.state}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {selectedParty && (
+                        <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                          <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-3">{selectedParty.name}</h4>
+                          <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                            <p>{selectedParty.address}</p>
+                            <p>{selectedParty.city}, {selectedParty.state}</p>
+                            {selectedParty.gstin && <p>GSTIN: {selectedParty.gstin}</p>}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Items Section */}
+                  <div className="bg-white dark:bg-gray-800 p-8">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <Package2 className="h-6 w-6 text-blue-600" />
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Invoice Items</h3>
+                      </div>
+                      <Badge variant="outline" className="bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
+                        {invoiceItems.length} items
+                      </Badge>
+                    </div>
+
+                    {/* Add Item Row */}
+                    <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 p-6 rounded-xl mb-6">
+                      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                        <div className="md:col-span-2">
+                          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Item</Label>
+                          <Popover open={itemSearchOpen} onOpenChange={setItemSearchOpen}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className="w-full justify-between mt-1 h-10 bg-white dark:bg-gray-800"
+                              >
+                                {currentItem.item_id
+                                  ? items.find(item => item.id === currentItem.item_id)?.name
+                                  : "Search items..."}
+                                <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80 p-0">
+                              <Command>
+                                <CommandInput 
+                                  placeholder="Search items..." 
+                                  value={itemSearchValue}
+                                  onValueChange={setItemSearchValue}
+                                />
+                                <CommandList>
+                                  <CommandEmpty>No item found.</CommandEmpty>
+                                  <CommandGroup>
+                                    {filteredItems.map((item) => (
+                                      <CommandItem
+                                        key={item.id}
+                                        value={item.id}
+                                        onSelect={() => {
+                                          setCurrentItem(prev => ({ 
+                                            ...prev, 
+                                            item_id: item.id, 
+                                            rate: item.sales_price.toString()
+                                          }))
+                                          setItemSearchOpen(false)
+                                        }}
+                                        className="cursor-pointer"
+                                      >
+                                        <div className="flex flex-col w-full">
+                                          <span className="font-medium">{item.name}</span>
+                                          <span className="text-xs text-gray-500">
+                                            {item.code} • ₹{item.sales_price} • {item.unit}
+                                          </span>
+                                        </div>
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Quantity</Label>
+                          <Input
+                            type="number"
+                            placeholder="1"
+                            value={currentItem.qty}
+                            onChange={(e) => setCurrentItem(prev => ({ ...prev, qty: e.target.value }))}
+                            className="mt-1 bg-white dark:bg-gray-800"
+                          />
+                        </div>
+                        
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Rate</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={currentItem.rate}
+                            onChange={(e) => setCurrentItem(prev => ({ ...prev, rate: e.target.value }))}
+                            className="mt-1 bg-white dark:bg-gray-800"
+                          />
+                        </div>
+                        
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Amount</Label>
+                          <div className="mt-1 p-2 bg-gray-100 dark:bg-gray-700 rounded border text-sm font-medium">
+                            ₹{((parseFloat(currentItem.qty) || 0) * (parseFloat(currentItem.rate) || 0)).toFixed(2)}
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-end">
+                          <Button 
+                            type="button" 
+                            onClick={addItemToInvoice} 
+                            disabled={!currentItem.item_id || saving}
+                            className="w-full bg-blue-600 hover:bg-blue-700"
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Items Table */}
+                    {invoiceItems.length > 0 && (
+                      <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+                        <Table>
+                          <TableHeader className="bg-gray-50 dark:bg-gray-800">
+                            <TableRow>
+                              <TableHead className="w-[40%] font-semibold">Item Description</TableHead>
+                              <TableHead className="text-center font-semibold">HSN</TableHead>
+                              <TableHead className="text-center font-semibold">Qty</TableHead>
+                              <TableHead className="text-right font-semibold">Rate</TableHead>
+                              <TableHead className="text-center font-semibold">Tax %</TableHead>
+                              <TableHead className="text-right font-semibold">Tax Amount</TableHead>
+                              <TableHead className="text-right font-semibold">Total</TableHead>
+                              <TableHead className="w-[50px]"></TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {invoiceItems.map((item, index) => (
+                              <TableRow key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                <TableCell>
+                                  <div>
+                                    <div className="font-medium text-gray-900 dark:text-gray-100">{item.item_name}</div>
+                                    <div className="text-sm text-gray-500 dark:text-gray-400">Code: {item.item_code}</div>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-center">{item.hsn}</TableCell>
+                                <TableCell className="text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <Input
+                                      type="number"
+                                      value={item.qty}
+                                      onChange={(e) => updateItemQuantity(item.id, e.target.value)}
+                                      className="w-16 text-center text-xs"
+                                    />
+                                    <span className="text-xs text-gray-500">{item.unit}</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={item.rate}
+                                    onChange={(e) => updateItemRate(item.id, e.target.value)}
+                                    className="w-20 text-right text-xs"
+                                  />
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Badge variant="outline" className="bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400">
+                                    {item.gst_percent}%
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right font-medium">₹{item.tax_amount.toFixed(2)}</TableCell>
+                                <TableCell className="text-right font-bold text-blue-600 dark:text-blue-400">
+                                  ₹{item.total.toFixed(2)}
+                                </TableCell>
+                                <TableCell>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => removeItemFromInvoice(item.id)}
+                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
 
                     {/* Invoice Summary */}
-                    <Card className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50">
-                      <CardContent className="p-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div className="space-y-4">
-                            <div className="flex justify-between">
-                              <span className="font-medium">Subtotal:</span>
-                              <span>₹{totals.subTotal.toFixed(2)}</span>
+                    {invoiceItems.length > 0 && (
+                      <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-3 mb-4">
+                            <AlignLeft className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                            <h4 className="font-semibold text-gray-900 dark:text-gray-100">Additional Information</h4>
+                          </div>
+                          
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Notes (Optional)</Label>
+                            <Textarea
+                              placeholder="Add any additional notes or terms..."
+                              className="mt-1 bg-white dark:bg-gray-800"
+                              rows={3}
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Send Email Invoice</Label>
+                            <Switch />
+                          </div>
+                        </div>
+
+                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-6 rounded-xl">
+                          <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+                            <Calculator className="h-5 w-5" />
+                            Invoice Summary
+                          </h4>
+                          
+                          <div className="space-y-3">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-600 dark:text-gray-400">Subtotal:</span>
+                              <span className="font-medium">₹{totals.subTotal.toFixed(2)}</span>
                             </div>
-                            <div className="flex justify-between">
-                              <span className="font-medium">Total Tax:</span>
-                              <span>₹{totals.totalTax.toFixed(2)}</span>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-600 dark:text-gray-400">Tax Total:</span>
+                              <span className="font-medium">₹{totals.totalTax.toFixed(2)}</span>
                             </div>
-                            <div className="flex justify-between items-center">
-                              <Label htmlFor="round_off" className="font-medium">Round Off:</Label>
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-gray-600 dark:text-gray-400">Round Off:</span>
                               <Input
-                                id="round_off"
-                                type="text"
+                                type="number"
+                                step="0.01"
                                 placeholder="0.00"
                                 value={formData.round_off}
                                 onChange={(e) => setFormData(prev => ({ ...prev, round_off: e.target.value }))}
-                                className="w-24 text-right"
+                                className="w-20 text-right text-xs"
                               />
                             </div>
                             <Separator />
-                            <div className="flex justify-between text-lg font-bold">
-                              <span>Net Total:</span>
+                            <div className="flex justify-between text-lg font-bold text-blue-600 dark:text-blue-400">
+                              <span>Total Amount:</span>
                               <span>₹{totals.netTotal.toFixed(2)}</span>
                             </div>
-                          </div>
-                          
-                          <div className="space-y-4">
-                            <div className="flex justify-between items-center">
-                              <Label htmlFor="payment_received" className="font-medium">Payment Received:</Label>
-                              <Input
-                                id="payment_received"
-                                type="text"
-                                placeholder="0.00"
-                                value={formData.payment_received}
-                                onChange={(e) => setFormData(prev => ({ ...prev, payment_received: e.target.value }))}
-                                className="w-32 text-right"
-                              />
-                            </div>
-                            <Separator />
-                            <div className="flex justify-between text-lg font-bold">
-                              <span>Balance Due:</span>
-                              <span className={totals.balanceDue > 0 ? "text-red-600" : "text-green-600"}>
-                                ₹{totals.balanceDue.toFixed(2)}
-                              </span>
+                            
+                            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+                              <div className="flex justify-between items-center text-sm mb-2">
+                                <span className="text-gray-600 dark:text-gray-400">Payment Received:</span>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  value={formData.payment_received}
+                                  onChange={(e) => setFormData(prev => ({ ...prev, payment_received: e.target.value }))}
+                                  className="w-24 text-right text-xs"
+                                />
+                              </div>
+                              <div className="flex justify-between font-bold">
+                                <span className="text-gray-700 dark:text-gray-300">Balance Due:</span>
+                                <span className={`${totals.balanceDue > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                                  ₹{totals.balanceDue.toFixed(2)}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         </div>
-
-                        {/* Terms and Conditions */}
-                        {business?.terms_conditions && (
-                          <div className="mt-6 pt-4 border-t border-gray-200">
-                            <h4 className="font-medium text-gray-700 mb-2">Terms & Conditions:</h4>
-                            <p className="text-sm text-gray-600 whitespace-pre-line">
-                              {business.terms_conditions}
-                            </p>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </div>
-                )}
-
-                {/* Form Actions */}
-                <div className="flex justify-end space-x-3 pt-6 border-t">
-                  <Button type="button" variant="outline" onClick={resetForm} disabled={saving}>
-                    <X className="h-4 w-4 mr-2" />
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={invoiceItems.length === 0 || saving}>
-                    {saving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        {editingInvoice ? "Update" : "Create"} Invoice
-                      </>
+                      </div>
                     )}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+                  </div>
+
+                  {/* Form Actions */}
+                  <div className="bg-gray-50 dark:bg-gray-800 p-6 border-t border-gray-200 dark:border-gray-700">
+                    <div className="flex justify-between">
+                      <div className="flex gap-3">
+                        <Button type="button" variant="outline" size="lg" className="gap-2">
+                          <Eye className="h-4 w-4" />
+                          Preview
+                        </Button>
+                        <Button type="button" variant="outline" size="lg" className="gap-2">
+                          <Download className="h-4 w-4" />
+                          Save as Draft
+                        </Button>
+                      </div>
+                      
+                      <div className="flex gap-3">
+                        <Button type="button" variant="outline" onClick={resetForm} disabled={saving} size="lg">
+                          Cancel
+                        </Button>
+                        <Button type="submit" disabled={invoiceItems.length === 0 || saving} size="lg" className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 gap-2">
+                          {saving ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="h-4 w-4" />
+                              {editingInvoice ? "Update" : "Create"} Invoice
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
         )}
 
-        {/* Invoices Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calculator className="h-5 w-5" />
+        {/* Recent Invoices */}
+        <Card className="shadow-lg border-0">
+          <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700">
+            <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-gray-100">
+              <Receipt className="h-5 w-5" />
               Recent Invoices
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-6">
             <DataTable
               data={invoices}
               columns={columns}

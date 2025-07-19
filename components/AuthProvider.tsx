@@ -21,44 +21,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Function to create user record safely
-    const createUserRecord = async (user: User) => {
-      try {
-        const { error } = await supabase.from('users').insert([
-          {
-            id: user.id,
-            email: user.email,
-            created_at: new Date().toISOString(),
-          }
-        ])
-        
-        // Ignore duplicate key errors - user already exists
-        if (error && !error.message.includes('duplicate key')) {
-          // Log error in development only
-          if (process.env.NODE_ENV === 'development') {
-            console.error('Error creating user record:', error)
-          }
-        }
-      } catch (error) {
-        // Log error in development only
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Error creating user record:', error)
-        }
-      }
-    }
-
     // Function to set up auth listener
     const setupAuthListener = () => {
       // Get initial session
       supabase.auth.getSession().then(({ data: { session } }) => {
         const currentUser = session?.user ?? null
         setUser(currentUser)
-        
-        // Create user record if user exists and is new
-        if (currentUser) {
-          createUserRecord(currentUser)
-        }
-        
+        setLoading(false)
+      }).catch((error) => {
+        console.error('Error getting session:', error)
         setLoading(false)
       })
 
@@ -68,12 +39,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } = supabase.auth.onAuthStateChange(async (event, session) => {
         const currentUser = session?.user ?? null
         setUser(currentUser)
-        
-        // Create user record on sign in
-        if (currentUser && event === 'SIGNED_IN') {
-          await createUserRecord(currentUser)
-        }
-        
         setLoading(false)
       })
 

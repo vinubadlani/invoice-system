@@ -37,6 +37,8 @@ interface UserSettings {
 
 export default function Settings() {
   const [business, setBusiness] = useState<Business | null>(null)
+  const [bankAccounts, setBankAccounts] = useState<any[]>([])
+  const [selectedBankAccount, setSelectedBankAccount] = useState<string>("")
   const [userSettings, setUserSettings] = useState<UserSettings>({
     notifications: true,
     emailAlerts: true,
@@ -50,7 +52,9 @@ export default function Settings() {
   useEffect(() => {
     const storedBusiness = localStorage.getItem("selectedBusiness")
     if (storedBusiness) {
-      setBusiness(JSON.parse(storedBusiness))
+      const business = JSON.parse(storedBusiness)
+      setBusiness(business)
+      loadBankAccounts(business.id)
     }
     
     // Load user settings from localStorage
@@ -58,9 +62,40 @@ export default function Settings() {
     if (savedSettings) {
       setUserSettings(JSON.parse(savedSettings))
     }
+
+    // Load selected bank account for invoices
+    const savedBankAccount = localStorage.getItem("selectedBankAccountForInvoices")
+    if (savedBankAccount) {
+      setSelectedBankAccount(savedBankAccount)
+    }
     
     setLoading(false)
   }, [])
+
+  const loadBankAccounts = async (businessId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("bank_accounts")
+        .select("*")
+        .eq("business_id", businessId)
+        .eq("is_active", true)
+        .order("bank_name")
+
+      if (error) {
+        // Handle table not found error gracefully
+        if (error.code === 'PGRST116' || error.message.includes('relation "public.bank_accounts" does not exist')) {
+          console.warn("Bank accounts table not found. Skipping bank account loading.")
+          setBankAccounts([])
+          return
+        }
+        throw error
+      }
+      setBankAccounts(data || [])
+    } catch (error) {
+      console.error("Error loading bank accounts:", error)
+      setBankAccounts([])
+    }
+  }
 
   const handleBusinessSave = async () => {
     if (!business) return
@@ -276,6 +311,32 @@ export default function Settings() {
                         value={business.terms_conditions}
                         onChange={(e) => setBusiness({ ...business, terms_conditions: e.target.value })}
                       />
+                    </div>
+                    
+                    {/* Bank Account Selection for Invoices */}
+                    <div className="md:col-span-2">
+                      <Label htmlFor="bankAccount">Default Bank Account for Invoices</Label>
+                      <Select
+                        value={selectedBankAccount}
+                        onValueChange={(value) => {
+                          setSelectedBankAccount(value)
+                          localStorage.setItem("selectedBankAccountForInvoices", value)
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select bank account for invoices" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {bankAccounts.map((account) => (
+                            <SelectItem key={account.id} value={account.id}>
+                              {account.bank_name} - {account.account_number} ({account.account_type})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-sm text-gray-500 mt-1">
+                        This bank account will be shown on all invoices
+                      </p>
                     </div>
                   </div>
                 )}
