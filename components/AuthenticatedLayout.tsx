@@ -6,19 +6,7 @@ import SidebarNavigation from "@/components/SidebarNavigation"
 import LoginForm from "@/components/LoginForm"
 import BusinessSelector from "@/components/BusinessSelector"
 
-interface Business {
-  id: string
-  name: string
-  address: string
-  city: string
-  state: string
-  pincode: string
-  phone: string
-  email: string
-  gstin: string
-  pan: string
-  terms_conditions: string
-}
+import { Business } from "@/lib/types"
 
 interface AuthenticatedLayoutProps {
   children: React.ReactNode

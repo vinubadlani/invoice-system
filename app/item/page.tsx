@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { supabase, optimizedQuery } from "@/lib/supabase"
 import { useOptimizedData } from "@/lib/cache-store"
-import { Plus, Edit, Save, X, Package, TrendingUp, TrendingDown, AlertTriangle } from "lucide-react"
+import { Plus, Edit, Save, X, Package, TrendingUp, TrendingDown, AlertTriangle, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -267,6 +267,35 @@ export default function ItemMaster() {
     setIsFormOpen(true)
   }
 
+  const handleDelete = async (item: Item) => {
+    if (!confirm(`Are you sure you want to delete "${item.name}"? This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from("items")
+        .delete()
+        .eq("id", item.id)
+        .eq("business_id", businessId)
+
+      if (error) throw error
+
+      // Update local state
+      const updatedItems = items.filter(i => i.id !== item.id)
+      setItems(updatedItems)
+      setFilteredItems(updatedItems)
+      
+      // Clear cache to ensure fresh data
+      clearCache()
+      
+      alert("Item deleted successfully!")
+    } catch (error) {
+      console.error("Error deleting item:", error)
+      alert("Failed to delete item. Please try again.")
+    }
+  }
+
   // Safe number formatting function
   const formatCurrency = (value: any) => {
     const num = Number(value) || 0
@@ -343,9 +372,14 @@ export default function ItemMaster() {
   )
 
   const actions = (item: Item) => (
-    <Button variant="ghost" size="sm" onClick={() => handleEdit(item)}>
-      <Edit className="h-4 w-4" />
-    </Button>
+    <div className="flex items-center gap-2">
+      <Button variant="ghost" size="sm" onClick={() => handleEdit(item)} className="text-blue-600 hover:text-blue-800 hover:bg-blue-50">
+        <Edit className="h-4 w-4" />
+      </Button>
+      <Button variant="ghost" size="sm" onClick={() => handleDelete(item)} className="text-red-600 hover:text-red-800 hover:bg-red-50">
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </div>
   )
 
   const calculateSummary = () => {
