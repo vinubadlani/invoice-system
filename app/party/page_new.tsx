@@ -165,15 +165,28 @@ export default function PartyPage() {
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingParty, setEditingParty] = useState<Party | null>(null)
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string
+    mobile: string
+    email: string
+    gstin: string
+    pan: string
+    type: "Debtor" | "Creditor" | "Expense"
+    opening_balance: number
+    balance_type: "To Collect" | "To Pay"
+    address: string
+    city: string
+    state: string
+    pincode: string
+  }>({
     name: "",
     mobile: "",
     email: "",
     gstin: "",
     pan: "",
-    type: "Debtor" as "Debtor" | "Creditor" | "Expense",
+    type: "Debtor",
     opening_balance: 0,
-    balance_type: "To Collect" as "To Collect" | "To Pay",
+    balance_type: "To Collect",
     address: "",
     city: "",
     state: "",

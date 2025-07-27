@@ -48,7 +48,7 @@ export default function LoginForm() {
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [copiedAdmin, setCopiedAdmin] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  const [passwordStrength, setPasswordStrength] = useState({ score: 0, feedback: [] })
+  const [passwordStrength, setPasswordStrength] = useState({ score: 0, feedback: [] as string[] })
 
   const copyAdminCredentials = async () => {
     try {

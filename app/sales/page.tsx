@@ -416,7 +416,7 @@ export default function SalesPage() {
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                         outerRadius={80}
                         fill="#8884d8"
                         dataKey="value"
@@ -617,7 +617,7 @@ export default function SalesPage() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Due Date:</span>
-                        <span>{selectedInvoice.due_date ? format(new Date(selectedInvoice.due_date), 'MMM dd, yyyy') : 'Not set'}</span>
+                        <span>{(selectedInvoice as any).due_date ? format(new Date((selectedInvoice as any).due_date), 'MMM dd, yyyy') : 'Not set'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Status:</span>
