@@ -100,7 +100,7 @@ export default function SalesPage() {
       })
 
       return () => {
-        subscription.unsubscribe()
+        subscription?.unsubscribe()
       }
     } else {
       setLoading(false)
@@ -134,9 +134,9 @@ export default function SalesPage() {
         salesQueries.getSalesStats(businessId)
       ])
 
-      setSalesData(salesDataResult)
-      setFilteredData(salesDataResult)
-      setStats(statsResult)
+      setSalesData(salesDataResult as unknown as SalesData[])
+      setFilteredData(salesDataResult as unknown as SalesData[])
+      setStats(statsResult as unknown as SalesStats)
 
     } catch (error) {
       console.error("Error loading sales data:", error)

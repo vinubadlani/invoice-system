@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { supabase } from "@/lib/supabase"
+import { supabase, getSupabaseClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 
 export default function LoginPage() {
@@ -27,7 +27,13 @@ export default function LoginPage() {
     setError("")
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const client = getSupabaseClient()
+      if (!client) {
+        setError("Service temporarily unavailable. Please try again later.")
+        return
+      }
+      
+      const { data, error } = await client.auth.signInWithPassword({
         email: email.trim(),
         password: password,
       })

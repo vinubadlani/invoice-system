@@ -4,7 +4,7 @@ import type React from "react"
 
 import { createContext, useContext, useEffect, useState } from "react"
 import type { User } from "@supabase/supabase-js"
-import { supabase, secureQueries } from "@/lib/supabase"
+import { supabase, secureQueries, getSupabaseClient } from "@/lib/supabase"
 
 interface AuthContextType {
   user: User | null
@@ -54,8 +54,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Function to set up auth listener
     const setupAuthListener = () => {
+      const client = getSupabaseClient()
+      if (!client) {
+        console.error('Supabase client not available')
+        setLoading(false)
+        return null
+      }
+      
       // Get initial session
-      supabase.auth.getSession().then(({ data: { session }, error }) => {
+      client.auth.getSession().then(({ data: { session }, error }) => {
         if (error) {
           console.error('Error getting session:', error.message)
           setLoading(false)
@@ -76,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Set up auth state change listener
       const {
         data: { subscription },
-      } = supabase.auth.onAuthStateChange(async (event, session) => {
+      } = client.auth.onAuthStateChange(async (event, session) => {
         const currentUser = session?.user ?? null
         setUser(currentUser)
         
@@ -98,7 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const cleanup = setupAuthListener()
 
     // Return the cleanup function from useEffect
-    return cleanup
+    return cleanup || undefined
   }, []) // Empty dependency array ensures this runs only once on mount
 
   return <AuthContext.Provider value={{ user, loading }}>{children}</AuthContext.Provider>

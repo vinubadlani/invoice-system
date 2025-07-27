@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { supabase } from "@/lib/supabase"
+import { supabase, getSupabaseClient } from "@/lib/supabase"
 import { Save, Building, User, Bell, Shield, Palette, Database, FileText, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import AuthenticatedLayout from "@/components/AuthenticatedLayout"
+import { useToast } from "@/hooks/use-toast"
 
 interface Business {
   id: string
@@ -77,6 +78,7 @@ export default function Settings() {
     autoSave: true,
     language: "en"
   })
+  const { toast } = useToast()
   const [selectedTemplate, setSelectedTemplate] = useState("classic")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -103,6 +105,16 @@ export default function Settings() {
     
     setSaving(true)
     try {
+      const client = getSupabaseClient()
+      if (!client) {
+        toast({
+          title: "Error",
+          description: "Service temporarily unavailable. Please try again later.",
+          variant: "destructive",
+        })
+        return
+      }
+      
       const updateData = {
         name: business.name,
         address: business.address,
@@ -117,7 +129,7 @@ export default function Settings() {
         invoice_template: selectedTemplate
       }
 
-      const { error } = await supabase
+      const { error } = await client
         .from("businesses")
         .update(updateData)
         .eq("id", business.id)
@@ -467,23 +479,33 @@ export default function Settings() {
                       try {
                         if (!business) return
                         
+                        const client = getSupabaseClient()
+                        if (!client) {
+                          toast({
+                            title: "Error",
+                            description: "Service temporarily unavailable. Please try again later.",
+                            variant: "destructive",
+                          })
+                          return
+                        }
+                        
                         // Export all business data with proper error handling
-                        const { data: parties } = await supabase
+                        const { data: parties } = await client
                           .from("parties")
                           .select("*")
                           .eq("business_id", business.id)
 
-                        const { data: items } = await supabase
+                        const { data: items } = await client
                           .from("items")
                           .select("*")
                           .eq("business_id", business.id)
 
-                        const { data: invoices } = await supabase
+                        const { data: invoices } = await client
                           .from("invoices")
                           .select("*")
                           .eq("business_id", business.id)
 
-                        const { data: payments } = await supabase
+                        const { data: payments } = await client
                           .from("payments")
                           .select("*")
                           .eq("business_id", business.id)

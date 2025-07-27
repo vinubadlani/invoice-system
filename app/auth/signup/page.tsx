@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Checkbox } from "@/components/ui/checkbox"
-import { supabase } from "@/lib/supabase"
+import { supabase, getSupabaseClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 
 export default function SignupPage() {
@@ -70,7 +70,13 @@ export default function SignupPage() {
     setLoading(true)
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const client = getSupabaseClient()
+      if (!client) {
+        setError("Service temporarily unavailable. Please try again later.")
+        return
+      }
+      
+      const { data, error } = await client.auth.signUp({
         email: formData.email.trim(),
         password: formData.password,
         options: {

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { supabase } from "@/lib/supabase"
+import { supabase, getSupabaseClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 
 export default function ForgotPasswordPage() {
@@ -24,7 +24,13 @@ export default function ForgotPasswordPage() {
     setError("")
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      const client = getSupabaseClient()
+      if (!client) {
+        setError("Service temporarily unavailable. Please try again later.")
+        return
+      }
+      
+      const { error } = await client.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: `${window.location.origin}/auth/reset-password`,
       })
 

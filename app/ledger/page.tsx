@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { supabase } from "@/lib/supabase"
+import { supabase, getSupabaseClient } from "@/lib/supabase"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -51,16 +51,23 @@ export default function Ledger() {
 
   const fetchParties = async (businessId: string) => {
     try {
-      const { data, error } = await supabase
+      const client = getSupabaseClient()
+      if (!client) {
+        console.error("Supabase client not available")
+        return
+      }
+      
+      const { data, error } = await client
         .from("parties")
         .select("id, name, type, opening_balance, balance_type")
         .eq("business_id", businessId)
         .order("name")
 
       if (error) throw error
-      setParties(data || [])
-      if (data && data.length > 0) {
-        setSelectedPartyId(data[0].id)
+      const partiesData = data as unknown as Party[]
+      setParties(partiesData || [])
+      if (partiesData && partiesData.length > 0) {
+        setSelectedPartyId(partiesData[0].id)
       }
     } catch (error) {
       console.error("Error fetching parties:", error)
@@ -94,7 +101,13 @@ export default function Ledger() {
       }
 
       // Fetch invoices for this party
-      const { data: invoices, error: invoicesError } = await supabase
+      const client = getSupabaseClient()
+      if (!client) {
+        console.error("Supabase client not available")
+        return
+      }
+      
+      const { data: invoices, error: invoicesError } = await client
         .from("invoices")
         .select("*")
         .eq("business_id", businessId)
@@ -104,7 +117,7 @@ export default function Ledger() {
       if (invoicesError) throw invoicesError
 
       // Add invoice entries
-      invoices?.forEach((invoice) => {
+      ;(invoices as any)?.forEach((invoice: any) => {
         const isDebit = invoice.type === "sales"
         const amount = invoice.net_total
 
@@ -128,7 +141,7 @@ export default function Ledger() {
       })
 
       // Fetch payments for this party
-      const { data: payments, error: paymentsError } = await supabase
+      const { data: payments, error: paymentsError } = await client
         .from("payments")
         .select("*")
         .eq("business_id", businessId)
@@ -138,7 +151,7 @@ export default function Ledger() {
       if (paymentsError) throw paymentsError
 
       // Add payment entries
-      payments?.forEach((payment) => {
+      ;(payments as any)?.forEach((payment: any) => {
         const isCredit = payment.type === "Received"
         const amount = payment.amount
 

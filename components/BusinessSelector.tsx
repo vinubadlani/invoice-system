@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { supabase } from "@/lib/supabase"
+import { supabase, getSupabaseClient } from "@/lib/supabase"
 import { useOptimizedData } from "@/lib/cache-store"
 import { Building2, Plus, Check, ChevronsUpDown, Loader2, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -53,10 +53,17 @@ export default function BusinessSelector({ onBusinessChange, onBusinessSelect, c
     try {
       setLoading(true)
       
-      const { data: { user } } = await supabase.auth.getUser()
+      const client = getSupabaseClient()
+      if (!client) {
+        console.error("Supabase client not available")
+        setLoading(false)
+        return
+      }
+      
+      const { data: { user } } = await client.auth.getUser()
       if (!user) return
 
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from("businesses")
         .select("*")
         .eq("user_id", user.id)
@@ -64,14 +71,15 @@ export default function BusinessSelector({ onBusinessChange, onBusinessSelect, c
 
       if (error) throw error
 
-      setBusinesses(data || [])
+      const businessesData = data as unknown as Business[]
+      setBusinesses(businessesData || [])
       
       // Auto-select business from localStorage or first business
       const storedBusiness = localStorage.getItem("selectedBusiness")
       if (storedBusiness) {
         try {
           const parsed = JSON.parse(storedBusiness)
-          const business = data?.find(b => b.id === parsed.id)
+          const business = businessesData?.find(b => b.id === parsed.id)
           if (business) {
             await selectBusiness(business, false) // Don't preload yet
             return
@@ -82,8 +90,8 @@ export default function BusinessSelector({ onBusinessChange, onBusinessSelect, c
       }
       
       // Select first business if available
-      if (data && data.length > 0) {
-        await selectBusiness(data[0], false)
+      if (businessesData && businessesData.length > 0) {
+        await selectBusiness(businessesData[0], false)
       }
     } catch (error) {
       console.error("Error fetching businesses:", error)
@@ -122,7 +130,12 @@ export default function BusinessSelector({ onBusinessChange, onBusinessSelect, c
     try {
       setCreating(true)
       
-      const { data: { user } } = await supabase.auth.getUser()
+      const client = getSupabaseClient()
+      if (!client) {
+        throw new Error("Service temporarily unavailable")
+      }
+      
+      const { data: { user } } = await client.auth.getUser()
       if (!user) throw new Error("User not authenticated")
 
       const businessData = {
@@ -130,7 +143,7 @@ export default function BusinessSelector({ onBusinessChange, onBusinessSelect, c
         user_id: user.id
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from("businesses")
         .insert([businessData])
         .select()
@@ -139,12 +152,10 @@ export default function BusinessSelector({ onBusinessChange, onBusinessSelect, c
       if (error) throw error
 
       // Add to businesses list
-      setBusinesses(prev => [data, ...prev])
-      
+      setBusinesses(prev => [data as unknown as Business, ...prev])
+
       // Select the new business
-      await selectBusiness(data)
-      
-      // Reset form
+      await selectBusiness(data as unknown as Business)      // Reset form
       setNewBusinessForm({
         name: "",
         address: "",

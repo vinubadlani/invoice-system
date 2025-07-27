@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useEffect } from "react"
-import { supabase } from "@/lib/supabase"
+import { supabase, getSupabaseClient } from "@/lib/supabase"
 import { Upload, FileText, Download, CheckCircle, XCircle, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -97,6 +97,15 @@ export default function UploadPage() {
     const text = await file.text()
     const data = JSON.parse(text)
 
+    const client = getSupabaseClient()
+    if (!client) {
+      setUploadResult({
+        success: false,
+        message: "Service temporarily unavailable. Please try again later."
+      })
+      return
+    }
+
     let imported = {
       parties: 0,
       items: 0,
@@ -109,7 +118,7 @@ export default function UploadPage() {
       setUploadProgress(25)
       for (const party of data.parties) {
         try {
-          await supabase.from("parties").insert([{
+          await client.from("parties").insert([{
             ...party,
             business_id: businessId,
             id: undefined // Let Supabase generate new ID
@@ -126,7 +135,7 @@ export default function UploadPage() {
       setUploadProgress(50)
       for (const item of data.items) {
         try {
-          await supabase.from("items").insert([{
+          await client.from("items").insert([{
             ...item,
             business_id: businessId,
             id: undefined
@@ -143,7 +152,7 @@ export default function UploadPage() {
       setUploadProgress(75)
       for (const invoice of data.invoices) {
         try {
-          await supabase.from("invoices").insert([{
+          await client.from("invoices").insert([{
             ...invoice,
             business_id: businessId,
             id: undefined
@@ -160,7 +169,7 @@ export default function UploadPage() {
       setUploadProgress(90)
       for (const payment of data.payments) {
         try {
-          await supabase.from("payments").insert([{
+          await client.from("payments").insert([{
             ...payment,
             business_id: businessId,
             id: undefined
@@ -184,6 +193,15 @@ export default function UploadPage() {
     const text = await file.text()
     const lines = text.split('\n')
     const headers = lines[0].split(',').map(h => h.trim())
+    
+    const client = getSupabaseClient()
+    if (!client) {
+      setUploadResult({
+        success: false,
+        message: "Service temporarily unavailable. Please try again later."
+      })
+      return
+    }
     
     // Detect CSV type based on headers
     let type = 'unknown'
@@ -216,13 +234,13 @@ export default function UploadPage() {
 
       try {
         if (type === 'parties') {
-          await supabase.from("parties").insert([{
+          await client.from("parties").insert([{
             ...row,
             business_id: businessId,
             opening_balance: parseFloat(row.opening_balance) || 0
           }])
         } else if (type === 'items') {
-          await supabase.from("items").insert([{
+          await client.from("items").insert([{
             ...row,
             business_id: businessId,
             sales_price: parseFloat(row.sales_price) || 0,

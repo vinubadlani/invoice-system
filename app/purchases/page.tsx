@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { supabase } from "@/lib/supabase"
+import { supabase, getSupabaseClient } from "@/lib/supabase"
 import { Plus, Trash2, Save, FileText, Download, Eye, Edit } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -119,7 +119,13 @@ export default function PurchasesPage() {
       setLoading(true)
       const { start, end } = getFinancialYearRange(financialYear)
       
-      const { data, error } = await supabase
+      const client = getSupabaseClient()
+      if (!client) {
+        console.error("Supabase client not available")
+        return
+      }
+      
+      const { data, error } = await client
         .from('invoices')
         .select('*')
         .eq('business_id', businessId)
@@ -130,8 +136,8 @@ export default function PurchasesPage() {
 
       if (error) throw error
       
-      setPurchases(data || [])
-      setFilteredPurchases(data || [])
+      setPurchases((data as unknown as Purchase[]) || [])
+      setFilteredPurchases((data as unknown as Purchase[]) || [])
     } catch (error) {
       console.error('Error fetching purchases:', error)
     } finally {

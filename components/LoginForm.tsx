@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState } from "react"
-import { supabase } from "@/lib/supabase"
+import { supabase, getSupabaseClient } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -99,7 +99,14 @@ export default function LoginForm() {
     }
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const client = getSupabaseClient()
+      if (!client) {
+        setError("Service temporarily unavailable. Please try again later.")
+        setLoading(false)
+        return
+      }
+      
+      const { data, error } = await client.auth.signUp({
         email: email.trim().toLowerCase(),
         password,
         options: {
@@ -142,7 +149,14 @@ export default function LoginForm() {
     }
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const client = getSupabaseClient()
+      if (!client) {
+        setError("Unable to connect to authentication service")
+        setLoading(false)
+        return
+      }
+
+      const { data, error } = await client.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password,
       })
@@ -151,7 +165,7 @@ export default function LoginForm() {
 
       if (data.user && !data.user.email_confirmed_at && email.trim().toLowerCase() !== "admin@poshamherbals.com") {
         setError("Please confirm your email address before signing in. Check your inbox for a confirmation link.")
-        await supabase.auth.signOut()
+        await client.auth.signOut()
         return
       }
     } catch (error: any) {

@@ -1,4 +1,4 @@
-import { supabase } from "./supabase"
+import { getSupabaseClient } from "./supabase"
 
 export const ADMIN_ACCOUNT = {
   email: "admin@hisabkitaab.com",
@@ -6,7 +6,12 @@ export const ADMIN_ACCOUNT = {
 }
 
 export async function signIn(email: string, password: string) {
-  const { data, error } = await supabase.auth.signInWithPassword({
+  const client = getSupabaseClient()
+  if (!client) {
+    throw new Error("Authentication service unavailable")
+  }
+
+  const { data, error } = await client.auth.signInWithPassword({
     email,
     password,
   })
@@ -17,7 +22,7 @@ export async function signIn(email: string, password: string) {
 
   // This check is crucial. If the user is NOT admin and email is not confirmed, sign them out.
   if (data.user && !data.user.email_confirmed_at && email !== ADMIN_ACCOUNT.email) {
-    await supabase.auth.signOut() // This signOut will trigger onAuthStateChange in AuthProvider
+    await client.auth.signOut() // This signOut will trigger onAuthStateChange in AuthProvider
     throw new Error("Please confirm your email address before signing in. Check your inbox for a confirmation link.")
   }
 
@@ -25,7 +30,12 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signUp(email: string, password: string, fullName: string) {
-  const { data, error } = await supabase.auth.signUp({
+  const client = getSupabaseClient()
+  if (!client) {
+    throw new Error("Authentication service unavailable")
+  }
+
+  const { data, error } = await client.auth.signUp({
     email,
     password,
     options: {
@@ -43,17 +53,27 @@ export async function signUp(email: string, password: string, fullName: string) 
 }
 
 export async function signOut() {
-  const { error } = await supabase.auth.signOut()
+  const client = getSupabaseClient()
+  if (!client) {
+    throw new Error("Authentication service unavailable")
+  }
+
+  const { error } = await client.auth.signOut()
   if (error) {
     throw error
   }
 }
 
 export async function getCurrentUser() {
+  const client = getSupabaseClient()
+  if (!client) {
+    throw new Error("Authentication service unavailable")
+  }
+
   const {
     data: { user },
     error,
-  } = await supabase.auth.getUser()
+  } = await client.auth.getUser()
   if (error) {
     throw error
   }
