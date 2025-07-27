@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { supabase, optimizedQuery } from "@/lib/supabase"
+import { supabase, getSupabaseClient } from "@/lib/supabase"
 import { useOptimizedData } from "@/lib/cache-store"
 import { Plus, Edit, Save, X, Users, Phone, MapPin, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import DataTable from "@/components/DataTable"
 import DataTableFilters, { FilterConfig, FilterValues } from "@/components/DataTableFilters"
 import AuthenticatedLayout from "@/components/AuthenticatedLayout"
+import { useToast } from "@/hooks/use-toast"
 
 interface Party {
   id: string
@@ -37,6 +38,7 @@ export default function PartyPage() {
   const [filteredParties, setFilteredParties] = useState<Party[]>([])
   const [loading, setLoading] = useState(true)
   const [businessId, setBusinessId] = useState<string>("")
+  const { toast } = useToast()
 
   // Filter configuration
   const filterConfigs: FilterConfig[] = [
@@ -205,7 +207,17 @@ export default function PartyPage() {
     }
 
     try {
-      const { error } = await supabase
+      const client = getSupabaseClient()
+      if (!client) {
+        toast({
+          title: "Error",
+          description: "Service temporarily unavailable. Please try again later.",
+          variant: "destructive",
+        })
+        return
+      }
+      
+      const { error } = await client
         .from("parties")
         .delete()
         .eq("id", party.id)
@@ -232,9 +244,19 @@ export default function PartyPage() {
     e.preventDefault()
     
     try {
+      const client = getSupabaseClient()
+      if (!client) {
+        toast({
+          title: "Error",
+          description: "Service temporarily unavailable. Please try again later.",
+          variant: "destructive",
+        })
+        return
+      }
+      
       if (editingParty) {
         // Update existing party
-        const { error } = await supabase
+        const { error } = await client
           .from("parties")
           .update({
             ...formData,
@@ -246,7 +268,7 @@ export default function PartyPage() {
         if (error) throw error
       } else {
         // Create new party
-        const { error } = await supabase
+        const { error } = await client
           .from("parties")
           .insert([{
             ...formData,

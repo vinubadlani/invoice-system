@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { supabase } from "@/lib/supabase"
+import { supabase, getSupabaseClient } from "@/lib/supabase"
 import { Plus, Save, X, CreditCard, TrendingUp, TrendingDown, Building2, Trash2, Edit } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -84,17 +84,27 @@ export default function BankAccountsPage() {
       setLoading(true)
       
       // Load bank accounts
-      const { data: accountsData, error: accountsError } = await supabase
+      const client = getSupabaseClient()
+      if (!client) {
+        toast({
+          title: "Error",
+          description: "Service temporarily unavailable. Please try again later.",
+          variant: "destructive",
+        })
+        return
+      }
+      
+      const { data: accountsData, error: accountsError } = await client
         .from("bank_accounts")
         .select("*")
         .eq("business_id", businessId)
         .order("created_at", { ascending: false })
 
       if (accountsError) throw accountsError
-      setAccounts(accountsData || [])
+      setAccounts((accountsData as unknown as BankAccount[]) || [])
 
       // Load bank transactions
-      const { data: transactionsData, error: transactionsError } = await supabase
+      const { data: transactionsData, error: transactionsError } = await client
         .from("bank_transactions")
         .select(`
           *,
@@ -104,7 +114,7 @@ export default function BankAccountsPage() {
         .order("date", { ascending: false })
 
       if (transactionsError) throw transactionsError
-      setTransactions(transactionsData || [])
+      setTransactions((transactionsData as unknown as BankTransaction[]) || [])
 
     } catch (error) {
       console.error("Error loading bank data:", error)
@@ -121,7 +131,17 @@ export default function BankAccountsPage() {
   const handleAddAccount = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const { data, error } = await supabase
+      const client = getSupabaseClient()
+      if (!client) {
+        toast({
+          title: "Error",
+          description: "Service temporarily unavailable. Please try again later.",
+          variant: "destructive",
+        })
+        return
+      }
+      
+      const { data, error } = await client
         .from("bank_accounts")
         .insert([
           {
@@ -135,7 +155,7 @@ export default function BankAccountsPage() {
 
       if (error) throw error
 
-      setAccounts([data, ...accounts])
+      setAccounts([data as unknown as BankAccount, ...accounts])
       resetAccountForm()
       toast({
         title: "Success",
@@ -163,7 +183,17 @@ export default function BankAccountsPage() {
         : account.current_balance - transactionFormData.amount
 
       // Add transaction
-      const { data: transactionData, error: transactionError } = await supabase
+      const client = getSupabaseClient()
+      if (!client) {
+        toast({
+          title: "Error",
+          description: "Service temporarily unavailable. Please try again later.",
+          variant: "destructive",
+        })
+        return
+      }
+      
+      const { data: transactionData, error: transactionError } = await client
         .from("bank_transactions")
         .insert([
           {
@@ -178,7 +208,7 @@ export default function BankAccountsPage() {
       if (transactionError) throw transactionError
 
       // Update account balance
-      const { error: updateError } = await supabase
+      const { error: updateError } = await client
         .from("bank_accounts")
         .update({ current_balance: newBalance })
         .eq("id", transactionFormData.account_id)

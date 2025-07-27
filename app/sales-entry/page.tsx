@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { supabase } from "@/lib/supabase"
+import { supabase, getSupabaseClient } from "@/lib/supabase"
 import { useOptimizedData } from "@/lib/cache-store"
 import { Plus, Edit, Trash2, Save, X, Loader2, Search, Calculator, Receipt, FileText, Building2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -139,12 +139,18 @@ export default function SalesEntry() {
     try {
       setLoading(true)
       
+      const client = getSupabaseClient()
+      if (!client) {
+        console.error("Supabase client not available")
+        return
+      }
+      
       // Use cached data fetching - much faster!
       const [partiesData, itemsData, businessData, invoicesResult] = await Promise.all([
         fetchParties(businessId),
         fetchItems(businessId),
         fetchBusiness(businessId),
-        supabase
+        client
           .from("invoices")
           .select("*")
           .eq("business_id", businessId)
@@ -158,7 +164,7 @@ export default function SalesEntry() {
       setParties(partiesData)
       setItems(itemsData)
       setBusiness(businessData)
-      setInvoices(invoicesResult.data || [])
+      setInvoices((invoicesResult.data as unknown as Invoice[]) || [])
       
       if (!editingInvoice) {
         setFormData(prev => ({ ...prev, invoice_no: generateInvoiceNo() }))
@@ -281,6 +287,16 @@ export default function SalesEntry() {
 
     setSaving(true)
     try {
+      const client = getSupabaseClient()
+      if (!client) {
+        toast({
+          title: "Error",
+          description: "Service temporarily unavailable. Please try again later.",
+          variant: "destructive",
+        })
+        return
+      }
+      
       const selectedParty = parties.find(p => p.id === formData.party_id)
       if (!selectedParty) {
         throw new Error("Selected party not found")
@@ -306,14 +322,14 @@ export default function SalesEntry() {
 
       let result
       if (editingInvoice) {
-        result = await supabase
+        result = await client
           .from("invoices")
           .update(invoiceData)
           .eq("id", editingInvoice.id)
           .select()
           .single()
       } else {
-        result = await supabase
+        result = await client
           .from("invoices")
           .insert([invoiceData])
           .select()
@@ -330,7 +346,7 @@ export default function SalesEntry() {
           inv.id === editingInvoice.id ? { ...inv, ...invoiceData } : inv
         ))
       } else {
-        setInvoices(prev => [result.data, ...prev.slice(0, 24)]) // Keep only 25 recent invoices
+        setInvoices(prev => [result.data as unknown as Invoice, ...prev.slice(0, 24)]) // Keep only 25 recent invoices
       }
 
       toast({

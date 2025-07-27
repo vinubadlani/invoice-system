@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist, subscribeWithSelector } from 'zustand/middleware'
-import { supabase } from '@/lib/supabase'
+import { getSupabaseClient } from '@/lib/supabase'
 
 // Enhanced cache with better performance
 interface CacheItem<T> {
@@ -86,7 +86,13 @@ class OptimizedCache {
     this.setLoading(cacheKey, true)
     
     try {
-      const { data, error } = await supabase
+      const client = getSupabaseClient()
+      if (!client) {
+        console.warn("Supabase client unavailable during build")
+        return []
+      }
+
+      const { data, error } = await client
         .from("parties")
         .select("id, name, gstin, address, city, state, type, mobile, email")
         .eq("business_id", businessId)
@@ -126,7 +132,13 @@ class OptimizedCache {
     this.setLoading(cacheKey, true)
     
     try {
-      const { data, error } = await supabase
+      const client = getSupabaseClient()
+      if (!client) {
+        console.warn("Supabase client unavailable during build")
+        return []
+      }
+
+      const { data, error } = await client
         .from("items")
         .select("id, name, code, hsn_code, gst_percent, sales_price, purchase_price, unit")
         .eq("business_id", businessId)
@@ -153,7 +165,13 @@ class OptimizedCache {
     if (cached) return cached
 
     try {
-      const { data, error } = await supabase
+      const client = getSupabaseClient()
+      if (!client) {
+        console.warn("Supabase client unavailable during build")
+        return null
+      }
+
+      const { data, error } = await client
         .from("businesses")
         .select("*")
         .eq("id", businessId)
@@ -177,7 +195,13 @@ class OptimizedCache {
     if (cached) return cached
 
     try {
-      const { data, error } = await supabase
+      const client = getSupabaseClient()
+      if (!client) {
+        console.warn("Supabase client unavailable during build")
+        return []
+      }
+
+      const { data, error } = await client
         .from("invoices")
         .select("id, invoice_no, date, party_name, net_total, balance_due, type")
         .eq("business_id", businessId)

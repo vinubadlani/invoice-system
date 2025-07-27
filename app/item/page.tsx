@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { supabase, optimizedQuery } from "@/lib/supabase"
+import { supabase, getSupabaseClient } from "@/lib/supabase"
 import { useOptimizedData } from "@/lib/cache-store"
 import { Plus, Edit, Save, X, Package, TrendingUp, TrendingDown, AlertTriangle, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import DataTable from "@/components/DataTable"
 import DataTableFilters, { FilterConfig, FilterValues } from "@/components/DataTableFilters"
 import AuthenticatedLayout from "@/components/AuthenticatedLayout"
+import { useToast } from "@/hooks/use-toast"
 
 interface Item {
   id: string
@@ -34,6 +35,7 @@ export default function ItemMaster() {
   const [filteredItems, setFilteredItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(true)
   const [businessId, setBusinessId] = useState<string>("")
+  const { toast } = useToast()
 
   // Filter configuration
   const filterConfigs: FilterConfig[] = [
@@ -207,8 +209,18 @@ export default function ItemMaster() {
     if (!businessId) return
 
     try {
+      const client = getSupabaseClient()
+      if (!client) {
+        toast({
+          title: "Error",
+          description: "Service temporarily unavailable. Please try again later.",
+          variant: "destructive",
+        })
+        return
+      }
+      
       if (editingItem) {
-        const { error } = await supabase.from("items").update(formData).eq("id", editingItem.id)
+        const { error } = await client.from("items").update(formData).eq("id", editingItem.id)
 
         if (error) throw error
 
@@ -217,14 +229,14 @@ export default function ItemMaster() {
         setFilteredItems(updatedItems)
         setEditingItem(null)
       } else {
-        const { data, error } = await supabase
+        const { data, error } = await client
           .from("items")
           .insert([{ ...formData, business_id: businessId }])
           .select()
           .single()
 
         if (error) throw error
-        const newItems = [data, ...items]
+        const newItems = [data as unknown as Item, ...items]
         setItems(newItems)
         setFilteredItems(newItems)
       }
@@ -273,7 +285,17 @@ export default function ItemMaster() {
     }
 
     try {
-      const { error } = await supabase
+      const client = getSupabaseClient()
+      if (!client) {
+        toast({
+          title: "Error",
+          description: "Service temporarily unavailable. Please try again later.",
+          variant: "destructive",
+        })
+        return
+      }
+      
+      const { error } = await client
         .from("items")
         .delete()
         .eq("id", item.id)
