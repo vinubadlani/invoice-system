@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist, subscribeWithSelector } from 'zustand/middleware'
-import { getSupabaseClient } from '@/lib/supabase'
+import { getSupabaseClient, getCurrentUser, verifyBusinessOwnership } from '@/lib/supabase'
 
 // Enhanced cache with better performance
 interface CacheItem<T> {
@@ -53,23 +53,34 @@ class OptimizedCache {
     this.cache.clear()
   }
 
-  // Preload critical data
+  // Optimized preload critical data with timeout and fallbacks
   async preloadCriticalData(businessId: string): Promise<void> {
+    // Don't wait for all promises - load in background
     const promises = [
-      this.fetchParties(businessId),
-      this.fetchItems(businessId),
-      this.fetchBusiness(businessId)
+      this.fetchParties(businessId).catch(() => []),
+      this.fetchItems(businessId).catch(() => []),
+      this.fetchBusiness(businessId).catch(() => null)
     ]
     
-    await Promise.allSettled(promises)
+    // Set a timeout so we don't block the UI
+    const timeoutPromise = new Promise(resolve => 
+      setTimeout(() => resolve(null), 3000)
+    )
+    
+    // Race between data loading and timeout
+    await Promise.race([
+      Promise.allSettled(promises),
+      timeoutPromise
+    ])
+    
+    console.log('Critical data preload completed or timed out')
   }
 
   // Optimized fetch functions with aggressive caching
-  async fetchParties(businessId: string): Promise<any[]> {
-    const cacheKey = `parties-${businessId}`
+  async fetchParties(businessId: string, type?: "Debtor" | "Creditor" | "Expense"): Promise<any[]> {
+    const cacheKey = `parties-${businessId}-${type || 'all'}`
     
     if (this.isLoading(cacheKey)) {
-      // Wait for existing request
       return new Promise(resolve => {
         const checkInterval = setInterval(() => {
           if (!this.isLoading(cacheKey)) {
@@ -86,18 +97,36 @@ class OptimizedCache {
     this.setLoading(cacheKey, true)
     
     try {
+      // Security check - verify business ownership
+      const user = await getCurrentUser()
+      if (!user) {
+        console.warn("User not authenticated")
+        return []
+      }
+
+      const isOwner = await verifyBusinessOwnership(businessId, user.id)
+      if (!isOwner) {
+        console.warn("User does not own this business")
+        return []
+      }
+
       const client = getSupabaseClient()
       if (!client) {
         console.warn("Supabase client unavailable during build")
         return []
       }
 
-      const { data, error } = await client
+      let query = client
         .from("parties")
-        .select("id, name, gstin, address, city, state, type, mobile, email")
+        .select("id, name, mobile, email, type, gstin, state, address")
         .eq("business_id", businessId)
         .order("name")
-        .limit(100)
+
+      if (type) {
+        query = query.eq("type", type)
+      }
+
+      const { data, error } = await query.limit(100)
 
       if (error) throw error
       
@@ -132,6 +161,19 @@ class OptimizedCache {
     this.setLoading(cacheKey, true)
     
     try {
+      // Security check - verify business ownership
+      const user = await getCurrentUser()
+      if (!user) {
+        console.warn("User not authenticated")
+        return []
+      }
+
+      const isOwner = await verifyBusinessOwnership(businessId, user.id)
+      if (!isOwner) {
+        console.warn("User does not own this business")
+        return []
+      }
+
       const client = getSupabaseClient()
       if (!client) {
         console.warn("Supabase client unavailable during build")
@@ -195,6 +237,19 @@ class OptimizedCache {
     if (cached) return cached
 
     try {
+      // Security check - verify business ownership
+      const user = await getCurrentUser()
+      if (!user) {
+        console.warn("User not authenticated")
+        return []
+      }
+
+      const isOwner = await verifyBusinessOwnership(businessId, user.id)
+      if (!isOwner) {
+        console.warn("User does not own this business")
+        return []
+      }
+
       const client = getSupabaseClient()
       if (!client) {
         console.warn("Supabase client unavailable during build")

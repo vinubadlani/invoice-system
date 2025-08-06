@@ -44,28 +44,72 @@ const INVOICE_TEMPLATES = [
     name: "Classic Professional",
     description: "Traditional business invoice with clean layout",
     preview: "Simple header, itemized table, clean footer",
-    features: ["Company logo top-left", "Billing details right", "Clean table design", "Terms at bottom"]
+    features: ["Company logo top-left", "Billing details right", "Clean table design", "Terms at bottom"],
+    type: "invoice"
   },
   {
     id: "modern",
     name: "Modern Minimalist",
     description: "Clean, modern design with gradient accents",
     preview: "Gradient header, modern typography, sleek design",
-    features: ["Gradient header", "Modern fonts", "Minimal borders", "Highlighted totals"]
+    features: ["Gradient header", "Modern fonts", "Minimal borders", "Highlighted totals"],
+    type: "invoice"
   },
   {
     id: "corporate",
     name: "Corporate Blue",
     description: "Professional corporate template with blue theme",
     preview: "Blue corporate theme, structured layout",
-    features: ["Blue color scheme", "Professional layout", "Structured sections", "Corporate branding"]
+    features: ["Blue color scheme", "Professional layout", "Structured sections", "Corporate branding"],
+    type: "invoice"
   },
   {
     id: "elegant",
     name: "Elegant Gray",
     description: "Sophisticated template with elegant styling",
     preview: "Elegant typography, refined layout, premium feel",
-    features: ["Elegant typography", "Refined borders", "Premium styling", "Sophisticated layout"]
+    features: ["Elegant typography", "Refined borders", "Premium styling", "Sophisticated layout"],
+    type: "invoice"
+  },
+  {
+    id: "receipt",
+    name: "Simple Receipt",
+    description: "Compact receipt format for small transactions",
+    preview: "Compact layout, minimal details, receipt style",
+    features: ["Compact design", "Essential details only", "Receipt format", "Small form factor"],
+    type: "receipt"
+  },
+  {
+    id: "thermal-receipt",
+    name: "Thermal Receipt",
+    description: "Thermal printer compatible receipt format",
+    preview: "80mm thermal paper format, monospace font",
+    features: ["80mm width", "Monospace font", "Thermal printer ready", "POS compatible"],
+    type: "receipt"
+  },
+  {
+    id: "shipping-label",
+    name: "Shipping Label",
+    description: "Professional shipping label with tracking",
+    preview: "Large fonts, shipping details, barcode ready",
+    features: ["Large readable fonts", "Shipping addresses", "Tracking details", "Barcode space"],
+    type: "shipping"
+  },
+  {
+    id: "delivery-note",
+    name: "Delivery Note",
+    description: "Delivery challan with signature space",
+    preview: "Delivery focused, signature area, driver details",
+    features: ["Delivery details", "Signature section", "Driver info", "Time stamps"],
+    type: "delivery"
+  },
+  {
+    id: "quotation",
+    name: "Professional Quotation",
+    description: "Business quotation with validity period",
+    preview: "Quote details, validity, terms, acceptance",
+    features: ["Quote validity", "Terms & conditions", "Acceptance section", "Professional layout"],
+    type: "quotation"
   }
 ]
 
@@ -305,52 +349,135 @@ export default function Settings() {
                 <p className="text-sm text-gray-600">Choose from professional invoice templates for your business</p>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {INVOICE_TEMPLATES.map((template) => (
-                    <Card 
-                      key={template.id} 
-                      className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
-                        selectedTemplate === template.id 
-                          ? 'ring-2 ring-blue-500 bg-blue-50' 
-                          : 'hover:bg-gray-50'
-                      }`}
-                      onClick={() => handleTemplateSelect(template.id)}
-                    >
-                      <CardHeader>
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-lg">{template.name}</CardTitle>
-                          {selectedTemplate === template.id && (
-                            <Badge variant="default">Selected</Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600">{template.description}</p>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          <div className="bg-white p-4 rounded border-2 border-dashed border-gray-200 min-h-[120px] flex items-center justify-center">
-                            <p className="text-sm text-gray-500 text-center italic">
+                <div className="space-y-8">
+                  {/* Invoice Templates */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4 flex items-center">
+                      <FileText className="h-5 w-5 mr-2 text-blue-600" />
+                      Invoice Templates
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {INVOICE_TEMPLATES.filter(t => t.type === 'invoice').map((template) => (
+                        <Card 
+                          key={template.id} 
+                          className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
+                            selectedTemplate === template.id 
+                              ? 'ring-2 ring-blue-500 bg-blue-50' 
+                              : 'hover:bg-gray-50'
+                          }`}
+                          onClick={() => handleTemplateSelect(template.id)}
+                        >
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-base">{template.name}</CardTitle>
+                              {selectedTemplate === template.id && (
+                                <Badge variant="default">Selected</Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-600">{template.description}</p>
+                          </CardHeader>
+                          <CardContent className="pt-0">
+                            <div className="bg-white p-3 rounded border border-gray-200 min-h-[80px] flex items-center justify-center text-xs text-gray-500 text-center italic mb-3">
                               {template.preview}
-                            </p>
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-sm font-medium">Features:</Label>
-                            <ul className="text-sm text-gray-600 space-y-1">
-                              {template.features.map((feature, index) => (
-                                <li key={index} className="flex items-center">
-                                  <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-1 text-xs">
+                              {template.features.slice(0, 4).map((feature, index) => (
+                                <div key={index} className="flex items-center text-gray-600">
+                                  <span className="w-1 h-1 bg-blue-500 rounded-full mr-1"></span>
                                   {feature}
-                                </li>
+                                </div>
                               ))}
-                            </ul>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Receipt Templates */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4 flex items-center">
+                      <Eye className="h-5 w-5 mr-2 text-green-600" />
+                      Receipt Templates
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {INVOICE_TEMPLATES.filter(t => t.type === 'receipt').map((template) => (
+                        <Card 
+                          key={template.id} 
+                          className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
+                            selectedTemplate === template.id 
+                              ? 'ring-2 ring-green-500 bg-green-50' 
+                              : 'hover:bg-gray-50'
+                          }`}
+                          onClick={() => handleTemplateSelect(template.id)}
+                        >
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-base">{template.name}</CardTitle>
+                              {selectedTemplate === template.id && (
+                                <Badge variant="secondary">Selected</Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-600">{template.description}</p>
+                          </CardHeader>
+                          <CardContent className="pt-0">
+                            <div className="bg-white p-3 rounded border border-gray-200 min-h-[80px] flex items-center justify-center text-xs text-gray-500 text-center italic mb-3">
+                              {template.preview}
+                            </div>
+                            <div className="grid grid-cols-2 gap-1 text-xs">
+                              {template.features.slice(0, 4).map((feature, index) => (
+                                <div key={index} className="flex items-center text-gray-600">
+                                  <span className="w-1 h-1 bg-green-500 rounded-full mr-1"></span>
+                                  {feature}
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Other Document Templates */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4 flex items-center">
+                      <Palette className="h-5 w-5 mr-2 text-purple-600" />
+                      Other Document Templates
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {INVOICE_TEMPLATES.filter(t => !['invoice', 'receipt'].includes(t.type)).map((template) => (
+                        <Card 
+                          key={template.id} 
+                          className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
+                            selectedTemplate === template.id 
+                              ? 'ring-2 ring-purple-500 bg-purple-50' 
+                              : 'hover:bg-gray-50'
+                          }`}
+                          onClick={() => handleTemplateSelect(template.id)}
+                        >
+                          <CardHeader className="pb-2">
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-sm">{template.name}</CardTitle>
+                              {selectedTemplate === template.id && (
+                                <Badge variant="outline">Selected</Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-600">{template.description}</p>
+                          </CardHeader>
+                          <CardContent className="pt-0">
+                            <div className="bg-white p-2 rounded border border-gray-200 min-h-[60px] flex items-center justify-center text-xs text-gray-500 text-center italic mb-2">
+                              {template.preview}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-                <div className="mt-6 flex justify-between items-center">
+                
+                <div className="mt-8 flex justify-between items-center pt-6 border-t">
                   <div className="text-sm text-gray-600">
-                    Selected template will be applied to all new invoices
+                    Selected template: <span className="font-medium">{INVOICE_TEMPLATES.find(t => t.id === selectedTemplate)?.name}</span>
                   </div>
                   <Button onClick={handleBusinessSave} disabled={saving}>
                     <Save className="h-4 w-4 mr-2" />

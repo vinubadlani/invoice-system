@@ -5,6 +5,7 @@ ALTER TABLE public.parties ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bank_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bank_transactions ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies if they exist
@@ -31,6 +32,10 @@ DROP POLICY IF EXISTS "Users can update invoices of own businesses" ON public.in
 DROP POLICY IF EXISTS "Users can view payments of own businesses" ON public.payments;
 DROP POLICY IF EXISTS "Users can create payments for own businesses" ON public.payments;
 DROP POLICY IF EXISTS "Users can update payments of own businesses" ON public.payments;
+
+DROP POLICY IF EXISTS "Users can view bank_accounts of own businesses" ON public.bank_accounts;
+DROP POLICY IF EXISTS "Users can create bank_accounts for own businesses" ON public.bank_accounts;
+DROP POLICY IF EXISTS "Users can update bank_accounts of own businesses" ON public.bank_accounts;
 
 DROP POLICY IF EXISTS "Users can view bank_transactions of own businesses" ON public.bank_transactions;
 DROP POLICY IF EXISTS "Users can create bank_transactions for own businesses" ON public.bank_transactions;
@@ -138,6 +143,28 @@ CREATE POLICY "Users can create payments for own businesses" ON public.payments
   );
 
 CREATE POLICY "Users can update payments of own businesses" ON public.payments
+  FOR UPDATE USING (
+    business_id IN (
+      SELECT id FROM public.businesses WHERE user_id = auth.uid()
+    )
+  );
+
+-- Create RLS policies for bank_accounts table
+CREATE POLICY "Users can view bank_accounts of own businesses" ON public.bank_accounts
+  FOR SELECT USING (
+    business_id IN (
+      SELECT id FROM public.businesses WHERE user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can create bank_accounts for own businesses" ON public.bank_accounts
+  FOR INSERT WITH CHECK (
+    business_id IN (
+      SELECT id FROM public.businesses WHERE user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can update bank_accounts of own businesses" ON public.bank_accounts
   FOR UPDATE USING (
     business_id IN (
       SELECT id FROM public.businesses WHERE user_id = auth.uid()

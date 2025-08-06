@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { salesQueries, getSupabaseClient } from '@/lib/supabase'
+import { salesQueries } from '@/lib/supabase'
 import { TEMPLATE_COMPONENTS, TemplateType } from '@/components/InvoiceTemplates'
 
 interface Business {
@@ -15,18 +15,16 @@ interface Business {
   phone: string
   email: string
   gstin: string
-  pan?: string
-  terms_conditions?: string
   bank_name?: string
-  account_no?: string
+  account_number?: string
   ifsc_code?: string
-  branch_name?: string
   upi_id?: string
+  terms_conditions?: string
   template_style?: TemplateType
 }
 
 interface InvoiceData {
-  id: string
+  id: number
   invoice_no: string
   date: string
   party_name: string
@@ -40,14 +38,11 @@ interface InvoiceData {
   payment_received: number
   balance_due: number
   status?: string
-  [key: string]: any // Allow additional properties
 }
 
 export default function PrintPage() {
   const searchParams = useSearchParams()
   const invoiceId = searchParams.get('id')
-  const templateParam = searchParams.get('template') as TemplateType
-  const downloadMode = searchParams.get('download')
   
   const [invoice, setInvoice] = useState<InvoiceData | null>(null)
   const [business, setBusiness] = useState<Business | null>(null)
@@ -62,41 +57,19 @@ export default function PrintPage() {
           return
         }
 
-        // Get business data from localStorage - try both keys
-        let businessData = localStorage.getItem('selectedBusiness') || localStorage.getItem('businessInfo')
+        // Get business data from localStorage
+        const businessData = localStorage.getItem('businessInfo')
         if (businessData) {
           setBusiness(JSON.parse(businessData))
         } else {
-          // Try to fetch from database as fallback
-          try {
-            const supabase = getSupabaseClient()
-            if (supabase) {
-              const { data } = await supabase
-                .from('businesses')
-                .select('*')
-                .limit(1)
-              
-              if (data && data.length > 0) {
-                setBusiness(data[0] as unknown as Business)
-              } else {
-                setError('Please set up your business information in Settings first')
-                return
-              }
-            } else {
-              setError('Database connection failed. Please set up your business in Settings.')
-              return
-            }
-          } catch (dbError) {
-            setError('Business information not found. Please set up your business in Settings.')
-            return
-          }
+          setError('Business information not found')
+          return
         }
 
         // Fetch invoice data
-        const invoiceData = await salesQueries.getInvoiceById(invoiceId)
+        const invoiceData = await salesQueries.getSalesData(invoiceId)
         if (invoiceData) {
-          const invoice = { ...invoiceData, id: String(invoiceData.id) } as InvoiceData
-          setInvoice(invoice)
+          setInvoice(invoiceData)
         } else {
           setError('Invoice not found')
         }
@@ -154,20 +127,12 @@ export default function PrintPage() {
     )
   }
 
-  // Get the selected template from URL param, business settings, or default to classic
-  const templateType = templateParam || business?.template_style || 'classic'
+  // Get the selected template from business settings or default to classic
+  const templateType = business.template_style || 'classic'
   const TemplateComponent = TEMPLATE_COMPONENTS[templateType]
 
   return (
     <div className="print:m-0 print:p-0">
-      {downloadMode && (
-        <style jsx global>{`
-          @media print {
-            body { margin: 0; }
-            .no-print { display: none; }
-          }
-        `}</style>
-      )}
       <TemplateComponent invoice={invoice} business={business} />
     </div>
   )

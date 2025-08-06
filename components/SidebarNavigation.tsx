@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { useState } from "react"
 import { signOut } from "@/lib/auth"
 import { useAuth } from "./AuthProvider"
+import BusinessSelector from "./BusinessSelector"
 import {
   Menu,
   X,
@@ -27,6 +28,7 @@ import {
   Store,
   ChevronLeft,
   ChevronRight,
+  SwitchCamera,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -44,7 +46,7 @@ const navigationSections = [
   {
     title: "MAIN",
     items: [
-      { name: "Dashboard", href: "/", icon: Home },
+      { name: "Dashboard", href: "/dashboard", icon: Home },
     ]
   },
   {
@@ -83,14 +85,16 @@ const navigationSections = [
 
 interface SidebarNavigationProps {
   businessName: string
+  onBusinessChange?: () => void
 }
 
-export default function SidebarNavigation({ businessName }: SidebarNavigationProps) {
+export default function SidebarNavigation({ businessName, onBusinessChange }: SidebarNavigationProps) {
   const pathname = usePathname()
   const { user } = useAuth()
   const { theme, setTheme } = useTheme()
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isMobileOpen, setIsMobileOpen] = useState(false)
+  const [showBusinessSelector, setShowBusinessSelector] = useState(false)
 
   const handleSignOut = async () => {
     try {
@@ -139,12 +143,21 @@ export default function SidebarNavigation({ businessName }: SidebarNavigationPro
                     priority
                   />
                 </div>
-                <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                <div className="flex items-center justify-center gap-2 text-gray-500 dark:text-gray-400 mb-2">
                   <Store className="h-4 w-4" />
-                  <p className="text-sm font-medium truncate max-w-[200px]">
+                  <p className="text-sm font-medium truncate max-w-[180px]">
                     {businessName || "Business Management"}
                   </p>
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs px-2 py-1 h-7"
+                  onClick={() => setShowBusinessSelector(true)}
+                >
+                  <SwitchCamera className="h-3 w-3 mr-1" />
+                  Switch Business
+                </Button>
               </div>
             )}
             
@@ -354,6 +367,35 @@ export default function SidebarNavigation({ businessName }: SidebarNavigationPro
           <div className="w-8" /> {/* Spacer for balance */}
         </div>
       </div>
+
+      {/* Business Selector Modal */}
+      {showBusinessSelector && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Switch Business
+              </h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowBusinessSelector(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <BusinessSelector 
+              onBusinessSelect={(business) => {
+                setShowBusinessSelector(false)
+                onBusinessChange?.()
+                // Force page reload to update business context
+                window.location.reload()
+              }}
+              className="w-full"
+            />
+          </div>
+        </div>
+      )}
     </>
   )
 }

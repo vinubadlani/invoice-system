@@ -21,15 +21,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Function to create user record safely
+    // Optimized function to create user record safely
     const createUserRecord = async (user: User) => {
       try {
         if (!user?.id || !user?.email) {
-          console.warn('Invalid user data for record creation')
           return
         }
 
-        // Use secure insert method
+        // Use secure insert method with minimal data
         const { error } = await secureQueries.insertSecure('users', {
           id: user.id,
           email: user.email,
@@ -37,22 +36,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           created_at: new Date().toISOString(),
         })
         
-        // Ignore duplicate key errors - user already exists
+        // Silently handle duplicate key errors - user already exists
         if (error && !error.message.includes('duplicate key') && !error.message.includes('already exists')) {
-          // Only log actual errors, not expected duplicates
-          if (process.env.NODE_ENV === 'development') {
-            console.warn('User record creation warning:', error.message)
-          }
+          console.warn('User record creation warning:', error.message)
         }
       } catch (error: any) {
-        // Better error handling with type safety
-        if (process.env.NODE_ENV === 'development') {
-          console.warn('Error creating user record:', error?.message || 'Unknown error')
-        }
+        // Silent error handling to avoid blocking auth flow
+        console.warn('Error creating user record:', error?.message || 'Unknown error')
       }
     }
 
-    // Function to set up auth listener
+    // Optimized auth listener setup
     const setupAuthListener = () => {
       const client = getSupabaseClient()
       if (!client) {
@@ -61,24 +55,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return null
       }
       
-      // Get initial session
-      client.auth.getSession().then(({ data: { session }, error }) => {
-        if (error) {
-          console.error('Error getting session:', error.message)
-          setLoading(false)
-          return
-        }
+      // Get initial session with timeout
+      const sessionPromise = client.auth.getSession()
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Session fetch timeout')), 5000)
+      )
 
-        const currentUser = session?.user ?? null
-        setUser(currentUser)
-        
-        // Create user record if user exists and is new
-        if (currentUser) {
-          createUserRecord(currentUser)
-        }
-        
-        setLoading(false)
-      })
+      Promise.race([sessionPromise, timeoutPromise])
+        .then(({ data: { session }, error }: any) => {
+          if (error) {
+            console.error('Error getting session:', error.message)
+            setLoading(false)
+            return
+          }
+
+          const currentUser = session?.user ?? null
+          setUser(currentUser)
+          
+          // Create user record in background - don't wait for it
+          if (currentUser) {
+            createUserRecord(currentUser).catch(console.warn)
+          }
+          
+          setLoading(false)
+        })
+        .catch((error) => {
+          console.error('Session timeout or error:', error)
+          setLoading(false)
+        })
 
       // Set up auth state change listener
       const {
@@ -87,9 +91,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const currentUser = session?.user ?? null
         setUser(currentUser)
         
-        // Create user record on sign in
+        // Create user record in background on sign in
         if (currentUser && event === 'SIGNED_IN') {
-          await createUserRecord(currentUser)
+          createUserRecord(currentUser).catch(console.warn)
         }
         
         setLoading(false)

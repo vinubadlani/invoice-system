@@ -18,7 +18,9 @@ import { useToast } from "@/hooks/use-toast"
 interface Payment {
   id: string
   business_id: string
+  party_id: string
   party_name: string
+  invoice_id?: string
   invoice_no?: string
   type: "Received" | "Paid"
   amount: number
@@ -51,9 +53,9 @@ export default function PaymentsPage() {
   
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
-    party_name: "",
+    party_id: "",
     type: "Received" as "Received" | "Paid",
-    invoice_no: "",
+    invoice_id: "",
     amount: 0,
     mode: "Cash",
     remarks: "",
@@ -83,28 +85,21 @@ export default function PaymentsPage() {
       
       // Load data in parallel
       const [paymentsData, partiesData, invoicesData] = await Promise.all([
-        queryBuilder('payments', '*', { business_id: businessId }, { orderBy: 'date', ascending: false }),
+        queryBuilder('payments', { business_id: businessId }, { orderBy: 'date', ascending: false }),
         fetchParties(businessId, undefined, user?.id),
-        fetchInvoices(businessId, undefined, 100) // Remove user_id parameter since invoices use business_id
+        fetchInvoices(businessId, undefined, 100, user?.id)
       ])
 
-      // Handle payments data with proper type checking
-      if (Array.isArray(paymentsData) && paymentsData.length > 0 && !paymentsData[0]?.error) {
-        setPayments(paymentsData as unknown as Payment[])
-      } else {
-        setPayments([])
-      }
-      
-      setParties(partiesData || [])
-      setInvoices(invoicesData || [])
+      setPayments(paymentsData)
+      setParties(partiesData)
+      setInvoices(invoicesData)
 
-      // Calculate stats - only if we have valid payments data
-      const validPayments = Array.isArray(paymentsData) && !paymentsData[0]?.error ? paymentsData as unknown as Payment[] : []
-      const totalReceived = validPayments
+      // Calculate stats
+      const totalReceived = paymentsData
         .filter((p: Payment) => p.type === 'Received')
         .reduce((sum: number, p: Payment) => sum + p.amount, 0)
       
-      const totalPaid = validPayments
+      const totalPaid = paymentsData
         .filter((p: Payment) => p.type === 'Paid')
         .reduce((sum: number, p: Payment) => sum + p.amount, 0)
 
@@ -157,7 +152,7 @@ export default function PaymentsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.party_name || !formData.amount) {
+    if (!formData.party_id || !formData.amount) {
       toast({
         title: "Validation Error",
         description: "Please fill in all required fields",
@@ -169,16 +164,22 @@ export default function PaymentsPage() {
     try {
       setSaving(true)
       const user = await getCurrentUser()
+      
+      const selectedParty = parties.find(p => p.id === formData.party_id)
+      const selectedInvoice = invoices.find(i => i.id === formData.invoice_id)
 
       const paymentData = {
         business_id: businessId,
-        party_name: formData.party_name,
-        invoice_no: formData.invoice_no || null,
+        party_id: formData.party_id,
+        party_name: selectedParty?.name || '',
+        invoice_id: formData.invoice_id || null,
+        invoice_no: selectedInvoice?.invoice_no || null,
         type: formData.type,
         amount: parseFloat(formData.amount.toString()),
         mode: formData.mode,
         date: formData.date,
         remarks: formData.remarks || null,
+        created_at: new Date().toISOString()
       }
 
       const { error } = await insertData('payments', paymentData)
@@ -210,9 +211,9 @@ export default function PaymentsPage() {
   const resetForm = () => {
     setFormData({
       date: new Date().toISOString().split("T")[0],
-      party_name: "",
+      party_id: "",
       type: "Received",
-      invoice_no: "",
+      invoice_id: "",
       amount: 0,
       mode: "Cash",
       remarks: "",
@@ -221,8 +222,8 @@ export default function PaymentsPage() {
   }
 
   const getRelatedInvoices = () => {
-    if (!formData.party_name) return []
-    return invoices.filter(inv => inv.party_name === formData.party_name)
+    if (!formData.party_id) return []
+    return invoices.filter(inv => inv.party_id === formData.party_id)
   }
 
   if (loading) {
@@ -270,7 +271,7 @@ export default function PaymentsPage() {
                     </div>
                     <div>
                       <Label htmlFor="type">Type</Label>
-                      <Select value={formData.type} onValueChange={(value: "Received" | "Paid") => setFormData({ ...formData, type: value, party_name: "", invoice_no: "" })}>
+                      <Select value={formData.type} onValueChange={(value: "Received" | "Paid") => setFormData({ ...formData, type: value, party_id: "", invoice_id: "" })}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
@@ -283,33 +284,43 @@ export default function PaymentsPage() {
                   </div>
 
                   <div>
-                    <Label htmlFor="party">Party Name</Label>
-                    <Select 
-                      value={formData.party_name} 
-                      onValueChange={(value) => setFormData({ ...formData, party_name: value, invoice_no: "" })}
-                    >
+                    <Label htmlFor="party">Party</Label>
+                    <Select value={formData.party_id} onValueChange={(value) => setFormData({ ...formData, party_id: value, invoice_id: "" })}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select party" />
                       </SelectTrigger>
                       <SelectContent>
-                        {parties.map((party) => (
-                          <SelectItem key={party.id} value={party.name}>
-                            {party.name}
-                          </SelectItem>
-                        ))}
+                        {parties
+                          .filter(party => 
+                            formData.type === 'Received' ? party.type === 'Debtor' : party.type === 'Creditor'
+                          )
+                          .map((party) => (
+                            <SelectItem key={party.id} value={party.id}>
+                              {party.name}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </div>
 
-                  <div>
-                    <Label htmlFor="invoice">Invoice Number (Optional)</Label>
-                    <Input
-                      id="invoice"
-                      value={formData.invoice_no}
-                      onChange={(e) => setFormData({ ...formData, invoice_no: e.target.value })}
-                      placeholder="Enter invoice number (optional)"
-                    />
-                  </div>
+                  {formData.party_id && (
+                    <div>
+                      <Label htmlFor="invoice">Invoice (Optional)</Label>
+                      <Select value={formData.invoice_id} onValueChange={(value) => setFormData({ ...formData, invoice_id: value })}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select invoice" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">No specific invoice</SelectItem>
+                          {getRelatedInvoices().map((invoice) => (
+                            <SelectItem key={invoice.id} value={invoice.id}>
+                              {invoice.invoice_no} - ₹{invoice.net_total?.toLocaleString()}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>

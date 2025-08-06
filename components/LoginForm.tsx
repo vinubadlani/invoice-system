@@ -156,20 +156,42 @@ export default function LoginForm() {
         return
       }
 
-      const { data, error } = await client.auth.signInWithPassword({
+      // Add timeout to prevent hanging login
+      const signInPromise = client.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password,
       })
 
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Sign in timeout - please try again')), 10000)
+      )
+
+      const { data, error } = await Promise.race([signInPromise, timeoutPromise]) as any
+
       if (error) throw error
 
-      if (data.user && !data.user.email_confirmed_at && email.trim().toLowerCase() !== "admin@poshamherbals.com") {
+      // Skip email confirmation check for faster login (handle it in auth state)
+      if (data.user && !data.user.email_confirmed_at && email.trim().toLowerCase() !== "admin@hisabkitaab.com") {
         setError("Please confirm your email address before signing in. Check your inbox for a confirmation link.")
         await client.auth.signOut()
         return
       }
+
+      // Success - let AuthProvider handle the rest
     } catch (error: any) {
-      setError(error.message)
+      console.error('Sign in error:', error)
+      
+      // Better error messages
+      let errorMessage = error.message
+      if (error.message.includes('timeout')) {
+        errorMessage = 'Sign in is taking longer than expected. Please check your connection and try again.'
+      } else if (error.message.includes('Invalid login credentials')) {
+        errorMessage = 'Invalid email or password. Please check your credentials and try again.'
+      } else if (error.message.includes('Email not confirmed')) {
+        errorMessage = 'Please check your email and click the confirmation link before signing in.'
+      }
+      
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }

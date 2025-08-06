@@ -203,42 +203,9 @@ export async function signOut() {
   }
 }
 
-// Data security helpers
-export async function verifyBusinessOwnership(businessId: string, userId: string): Promise<boolean> {
-  try {
-    if (!businessId || !userId) {
-      console.warn('BusinessId and UserId are required for ownership verification')
-      return false
-    }
-
-    const client = ensureSupabaseClient()
-    const { data, error } = await client
-      .from('businesses')
-      .select('id')
-      .eq('id', businessId)
-      .eq('user_id', userId)
-      .single()
-
-    if (error) {
-      console.error('Error verifying business ownership:', error)
-      return false
-    }
-
-    return !!data
-  } catch (error: any) {
-    console.error('Error in verifyBusinessOwnership:', error?.message || 'Unknown error')
-    return false
-  }
-}
-
-// Secure fetch functions that verify ownership
+// Fetch operations
 export async function fetchBusinesses(userId: string) {
   try {
-    if (!userId) {
-      console.warn('UserId is required for fetchBusinesses')
-      return []
-    }
-
     const client = ensureSupabaseClient()
     const { data, error } = await client
       .from('businesses')
@@ -246,30 +213,16 @@ export async function fetchBusinesses(userId: string) {
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
 
-    if (error) {
-      console.error('Error fetching businesses:', error)
-      return []
-    }
+    if (error) throw error
     return data || []
-  } catch (error: any) {
-    console.error('Error fetching businesses:', error?.message || 'Unknown error')
+  } catch (error) {
+    console.error('Error fetching businesses:', error)
     return []
   }
 }
 
-export async function fetchParties(businessId: string, type?: "Debtor" | "Creditor" | "Expense", userId?: string) {
+export async function fetchParties(businessId: string, type?: "Debtor" | "Creditor" | "Expense") {
   try {
-    if (!businessId) {
-      console.warn('BusinessId is required for fetchParties')
-      return []
-    }
-
-    // Verify ownership if userId is provided
-    if (userId && !(await verifyBusinessOwnership(businessId, userId))) {
-      console.warn('User does not own this business')
-      return []
-    }
-
     const client = ensureSupabaseClient()
     let query = client
       .from('parties')
@@ -282,30 +235,16 @@ export async function fetchParties(businessId: string, type?: "Debtor" | "Credit
 
     const { data, error } = await query.order('name', { ascending: true })
 
-    if (error) {
-      console.error('Error fetching parties:', error)
-      return []
-    }
+    if (error) throw error
     return data || []
-  } catch (error: any) {
-    console.error('Error fetching parties:', error?.message || 'Unknown error')
+  } catch (error) {
+    console.error('Error fetching parties:', error)
     return []
   }
 }
 
-export async function fetchItems(businessId: string, userId?: string) {
+export async function fetchItems(businessId: string) {
   try {
-    if (!businessId) {
-      console.warn('BusinessId is required for fetchItems')
-      return []
-    }
-
-    // Verify ownership if userId is provided
-    if (userId && !(await verifyBusinessOwnership(businessId, userId))) {
-      console.warn('User does not own this business')
-      return []
-    }
-
     const client = ensureSupabaseClient()
     const { data, error } = await client
       .from('items')
@@ -313,34 +252,24 @@ export async function fetchItems(businessId: string, userId?: string) {
       .eq('business_id', businessId)
       .order('name', { ascending: true })
 
-    if (error) {
-      console.error('Error fetching items:', error)
-      return []
-    }
+    if (error) throw error
     return data || []
-  } catch (error: any) {
-    console.error('Error fetching items:', error?.message || 'Unknown error')
+  } catch (error) {
+    console.error('Error fetching items:', error)
     return []
   }
 }
 
-export async function fetchInvoices(businessId: string, type?: "sales" | "purchase", limit = 50, userId?: string) {
+export async function fetchInvoices(businessId: string, type?: "sales" | "purchase", limit = 50) {
   try {
-    if (!businessId) {
-      console.warn('BusinessId is required for fetchInvoices')
-      return []
-    }
-
-    // Verify ownership if userId is provided
-    if (userId && !(await verifyBusinessOwnership(businessId, userId))) {
-      console.warn('User does not own this business')
-      return []
-    }
-
     const client = ensureSupabaseClient()
     let query = client
       .from('invoices')
-      .select('*')
+      .select(`
+        *,
+        party:parties(name, mobile, type),
+        invoice_items(*)
+      `)
       .eq('business_id', businessId)
 
     if (type) {
@@ -351,135 +280,10 @@ export async function fetchInvoices(businessId: string, type?: "sales" | "purcha
       .order('date', { ascending: false })
       .limit(limit)
 
-    if (error) {
-      console.error('Supabase error fetching invoices:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code
-      })
-      throw error
-    }
-    
+    if (error) throw error
     return data || []
-  } catch (error: any) {
-    console.error('Error fetching invoices:', {
-      message: error?.message || 'Unknown error',
-      businessId,
-      type,
-      stack: error?.stack
-    })
+  } catch (error) {
+    console.error('Error fetching invoices:', error)
     return []
   }
-}
-
-// Sales queries for backwards compatibility
-export const salesQueries = {
-  getSalesData: async (businessId: string, options: any = {}) => {
-    try {
-      if (!businessId) {
-        console.warn('BusinessId is required for getSalesData')
-        return []
-      }
-      return await fetchInvoices(businessId, 'sales', options.limit)
-    } catch (error: any) {
-      console.error('Error in getSalesData:', {
-        message: error?.message || 'Unknown error',
-        businessId,
-        options
-      })
-      return []
-    }
-  },
-  
-  getInvoiceById: async (invoiceId: string) => {
-    try {
-      if (!invoiceId) {
-        console.warn('InvoiceId is required for getInvoiceById')
-        return null
-      }
-      
-      const supabase = getSupabaseClient()
-      if (!supabase) {
-        throw new Error('Supabase client not available')
-      }
-      
-      const { data, error } = await supabase
-        .from('invoices')
-        .select('*')
-        .eq('id', invoiceId)
-        .single()
-        
-      if (error) {
-        console.error('Error fetching invoice by ID:', error)
-        return null
-      }
-      
-      return data
-    } catch (error: any) {
-      console.error('Error in getInvoiceById:', {
-        message: error?.message || 'Unknown error',
-        invoiceId
-      })
-      return null
-    }
-  },
-  
-  getSalesStats: async (businessId: string) => {
-    try {
-      if (!businessId) {
-        console.warn('BusinessId is required for getSalesStats')
-        return { total: 0, count: 0, invoices: [] }
-      }
-
-      const invoices = await fetchInvoices(businessId, 'sales')
-      const total = invoices.reduce((sum, inv: any) => sum + (inv.net_total || 0), 0)
-      const count = invoices.length
-      return { total, count, invoices }
-    } catch (error: any) {
-      console.error('Error getting sales stats:', {
-        message: error?.message || 'Unknown error',
-        businessId
-      })
-      return { total: 0, count: 0, invoices: [] }
-    }
-  },
-  
-  subscribeSalesUpdates: (businessId: string, callback: (payload: any) => void) => {
-    try {
-      if (!businessId) {
-        console.warn('BusinessId is required for subscribeSalesUpdates')
-        return null
-      }
-
-      const client = ensureSupabaseClient()
-      return client
-        .channel('sales-updates')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'invoices',
-            filter: `business_id=eq.${businessId} AND type=eq.sales`
-          },
-          callback
-        )
-        .subscribe()
-    } catch (error: any) {
-      console.error('Error subscribing to sales updates:', {
-        message: error?.message || 'Unknown error',
-        businessId
-      })
-      return null
-    }
-  }
-}
-
-// Secure queries for backwards compatibility
-export const secureQueries = {
-  insertSecure: insertData,
-  updateSecure: updateData,
-  deleteSecure: deleteData,
-  querySecure: queryBuilder
 }

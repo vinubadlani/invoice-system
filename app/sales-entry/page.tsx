@@ -340,6 +340,30 @@ export default function SalesEntry() {
         throw result.error
       }
 
+      // Auto-record payment if payment_received > 0 and this is a new invoice
+      if (!editingInvoice && totals.paymentReceived > 0 && result.data) {
+        const paymentData = {
+          business_id: selectedBusiness.id,
+          party_name: formData.party_name,
+          invoice_no: formData.invoice_no,
+          type: "Received", // For sales, we receive payment from customer
+          amount: totals.paymentReceived,
+          mode: "Cash", // Default to Cash for sales, could add payment mode field later
+          date: formData.date,
+          remarks: `Auto-recorded from sales invoice ${formData.invoice_no}`,
+        }
+        
+        // Insert payment record
+        const paymentResult = await client
+          .from("payments")
+          .insert([paymentData])
+        
+        if (paymentResult.error) {
+          console.error("Error recording payment:", paymentResult.error)
+          // Don't fail the invoice creation if payment recording fails
+        }
+      }
+
       // Optimistically update the UI
       if (editingInvoice) {
         setInvoices(prev => prev.map(inv => 
@@ -351,7 +375,11 @@ export default function SalesEntry() {
 
       toast({
         title: "Success",
-        description: `Invoice ${editingInvoice ? "updated" : "created"} successfully!`
+        description: editingInvoice 
+          ? "Invoice updated successfully!"
+          : totals.paymentReceived > 0 
+            ? "Invoice created and payment recorded successfully!"
+            : "Invoice created successfully!"
       })
 
       resetForm()

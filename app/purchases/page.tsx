@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react"
 import { supabase, getSupabaseClient } from "@/lib/supabase"
-import { Plus, Trash2, Save, FileText, Download, Eye, Edit } from "lucide-react"
+import { Plus, Trash2, Save, FileText, Download, Eye, Edit, Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import AuthenticatedLayout from "@/components/AuthenticatedLayout"
 import DataTable from "@/components/DataTable"
 import DataTableFilters, { FilterConfig, FilterValues } from "@/components/DataTableFilters"
+import Link from "next/link"
 
 interface Purchase {
   id: string
@@ -16,12 +17,13 @@ interface Purchase {
   party_name: string
   net_total: number
   balance_due: number
-  payment_made: number
+  payment_received: number
   total_tax: number
   type: string
   gstin: string
   state: string
   created_at: string
+  items?: any // For payment_mode extraction
 }
 
 // Get financial year date range
@@ -146,8 +148,8 @@ export default function PurchasesPage() {
   }
 
   const getPaymentStatus = (purchase: Purchase) => {
-    if (purchase.payment_made >= purchase.net_total) return 'paid'
-    if (purchase.payment_made > 0) return 'partial'
+    if (purchase.payment_received >= purchase.net_total) return 'paid'
+    if (purchase.payment_received > 0) return 'partial'
     return 'pending'
   }
 
@@ -219,7 +221,7 @@ export default function PurchasesPage() {
   // Calculate summary statistics
   const summary = {
     totalPurchases: purchases.reduce((sum, p) => sum + p.net_total, 0),
-    totalPaid: purchases.reduce((sum, p) => sum + p.payment_made, 0),
+    totalPaid: purchases.reduce((sum, p) => sum + p.payment_received, 0),
     totalOutstanding: purchases.reduce((sum, p) => sum + p.balance_due, 0),
     totalTax: purchases.reduce((sum, p) => sum + p.total_tax, 0),
     totalCount: purchases.length,
@@ -255,7 +257,7 @@ export default function PurchasesPage() {
       render: (value: number) => `₹${value.toLocaleString('en-IN')}` 
     },
     { 
-      key: "payment_made", 
+      key: "payment_received", 
       label: "Paid", 
       render: (value: number) => `₹${value.toLocaleString('en-IN')}` 
     },
@@ -267,6 +269,24 @@ export default function PurchasesPage() {
           ₹{value.toLocaleString('en-IN')}
         </span>
       )
+    },
+    { 
+      key: "payment_mode", 
+      label: "Payment Mode", 
+      render: (value: any, row: Purchase) => {
+        // Extract payment mode from items field
+        let paymentMode = "Cash"
+        if (row.items) {
+          if (typeof row.items === 'object' && row.items.payment_mode) {
+            paymentMode = row.items.payment_mode
+          }
+        }
+        return (
+          <span className="capitalize px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+            {paymentMode}
+          </span>
+        )
+      }
     },
     { 
       key: "status", 
@@ -291,14 +311,46 @@ export default function PurchasesPage() {
 
   const actions = (purchase: Purchase) => (
     <div className="flex gap-2">
-      <Button variant="outline" size="sm">
+      <Button 
+        variant="outline" 
+        size="sm"
+        title="View Purchase"
+        onClick={() => {
+          // Could implement view dialog here
+          console.log("View purchase:", purchase.id)
+        }}
+      >
         <Eye className="h-4 w-4" />
       </Button>
-      <Button variant="outline" size="sm">
-        <Edit className="h-4 w-4" />
+      <Button 
+        variant="outline" 
+        size="sm" 
+        asChild
+        title="Edit Purchase"
+      >
+        <Link href={`/purchase-entry?edit=${purchase.id}`}>
+          <Edit className="h-4 w-4" />
+        </Link>
       </Button>
-      <Button variant="outline" size="sm">
-        <FileText className="h-4 w-4" />
+      <Button 
+        variant="outline" 
+        size="sm" 
+        asChild
+        title="Print Purchase"
+      >
+        <Link href={`/print?id=${purchase.id}`}>
+          <Printer className="h-4 w-4" />
+        </Link>
+      </Button>
+      <Button 
+        variant="outline" 
+        size="sm" 
+        asChild
+        title="Download Templates"
+      >
+        <Link href={`/download-templates?id=${purchase.id}`}>
+          <Download className="h-4 w-4" />
+        </Link>
       </Button>
     </div>
   )

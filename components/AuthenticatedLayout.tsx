@@ -29,6 +29,14 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
     localStorage.setItem("selectedBusiness", JSON.stringify(business))
   }
 
+  const handleBusinessChange = () => {
+    // This will trigger when business is changed in sidebar
+    const storedBusiness = localStorage.getItem("selectedBusiness")
+    if (storedBusiness) {
+      setSelectedBusiness(JSON.parse(storedBusiness))
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
@@ -47,7 +55,10 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <SidebarNavigation businessName={selectedBusiness.name} />
+      <SidebarNavigation 
+        businessName={selectedBusiness.name} 
+        onBusinessChange={handleBusinessChange}
+      />
       
       {/* Main Content Area - Updated for wider sidebar */}
       <div className="lg:pl-80 pt-16 lg:pt-0">

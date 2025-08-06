@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { supabase, getSupabaseClient } from "@/lib/supabase"
+import { getCurrentUser, queryBuilder, insertData, updateData, verifyBusinessOwnership } from "@/lib/supabase"
 import { Plus, Save, X, CreditCard, TrendingUp, TrendingDown, Building2, Trash2, Edit } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -83,44 +83,56 @@ export default function BankAccountsPage() {
     try {
       setLoading(true)
       
-      // Load bank accounts
-      const client = getSupabaseClient()
-      if (!client) {
+      // Verify user owns this business
+      const user = await getCurrentUser()
+      if (!user) {
         toast({
           title: "Error",
-          description: "Service temporarily unavailable. Please try again later.",
+          description: "Please log in to continue",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const hasAccess = await verifyBusinessOwnership(businessId, user.id)
+      if (!hasAccess) {
+        toast({
+          title: "Unauthorized",
+          description: "You don't have access to this business data",
           variant: "destructive",
         })
         return
       }
       
-      const { data: accountsData, error: accountsError } = await client
-        .from("bank_accounts")
-        .select("*")
-        .eq("business_id", businessId)
-        .order("created_at", { ascending: false })
+      // Load bank accounts with secure query
+      const accountsData = await queryBuilder(
+        'bank_accounts', 
+        '*',
+        { business_id: businessId }, 
+        { orderBy: 'created_at', ascending: false }
+      )
+      
+      setAccounts((accountsData as any[]) || [])
 
-      if (accountsError) throw accountsError
-      setAccounts((accountsData as unknown as BankAccount[]) || [])
+      // Load bank transactions with secure query
+      const transactionsData = await queryBuilder(
+        'bank_transactions',
+        '*',
+        { business_id: businessId },
+        { 
+          orderBy: 'date', 
+          ascending: false,
+          limit: 100
+        }
+      )
+      
+      setTransactions((transactionsData as any[]) || [])
 
-      // Load bank transactions
-      const { data: transactionsData, error: transactionsError } = await client
-        .from("bank_transactions")
-        .select(`
-          *,
-          bank_accounts!inner(bank_name, account_number)
-        `)
-        .eq("business_id", businessId)
-        .order("date", { ascending: false })
-
-      if (transactionsError) throw transactionsError
-      setTransactions((transactionsData as unknown as BankTransaction[]) || [])
-
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error loading bank data:", error)
       toast({
         title: "Error",
-        description: "Failed to load bank data",
+        description: error?.message || "Failed to load bank data",
         variant: "destructive"
       })
     } finally {
@@ -131,42 +143,52 @@ export default function BankAccountsPage() {
   const handleAddAccount = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const client = getSupabaseClient()
-      if (!client) {
+      // Verify user authentication and business access
+      const user = await getCurrentUser()
+      if (!user) {
         toast({
           title: "Error",
-          description: "Service temporarily unavailable. Please try again later.",
+          description: "Please log in to continue",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const hasAccess = await verifyBusinessOwnership(businessId, user.id)
+      if (!hasAccess) {
+        toast({
+          title: "Unauthorized",
+          description: "You don't have access to this business",
           variant: "destructive",
         })
         return
       }
       
-      const { data, error } = await client
-        .from("bank_accounts")
-        .insert([
-          {
-            ...accountFormData,
-            business_id: businessId,
-            current_balance: accountFormData.opening_balance,
-          }
-        ])
-        .select()
-        .single()
+      const accountData = {
+        ...accountFormData,
+        business_id: businessId,
+        current_balance: accountFormData.opening_balance,
+        created_at: new Date().toISOString()
+      }
+
+      const { data, error } = await insertData('bank_accounts', accountData)
 
       if (error) throw error
 
-      setAccounts([data as unknown as BankAccount, ...accounts])
+      // Reload data to get the new account
+      await loadData(businessId)
+      
       resetAccountForm()
       toast({
         title: "Success",
         description: "Bank account added successfully"
       })
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error adding account:", error)
       toast({
         title: "Error",
-        description: "Failed to add bank account",
+        description: error?.message || "Failed to add bank account",
         variant: "destructive"
       })
     }
@@ -175,59 +197,101 @@ export default function BankAccountsPage() {
   const handleAddTransaction = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
+      // Verify user authentication and business access
+      const user = await getCurrentUser()
+      if (!user) {
+        toast({
+          title: "Error",
+          description: "Please log in to continue",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const hasAccess = await verifyBusinessOwnership(businessId, user.id)
+      if (!hasAccess) {
+        toast({
+          title: "Unauthorized",
+          description: "You don't have access to this business",
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (!transactionFormData.account_id) {
+        toast({
+          title: "Validation Error",
+          description: "Please select a bank account",
+          variant: "destructive"
+        })
+        return
+      }
+
+      if (!transactionFormData.amount || transactionFormData.amount <= 0) {
+        toast({
+          title: "Validation Error",
+          description: "Please enter a valid amount",
+          variant: "destructive"
+        })
+        return
+      }
+
+      if (!transactionFormData.description.trim()) {
+        toast({
+          title: "Validation Error",
+          description: "Please enter a description",
+          variant: "destructive"
+        })
+        return
+      }
+
       const account = accounts.find(acc => acc.id === transactionFormData.account_id)
-      if (!account) return
+      if (!account) {
+        toast({
+          title: "Error",
+          description: "Please select a valid account",
+          variant: "destructive"
+        })
+        return
+      }
 
       const newBalance = transactionFormData.type === "Credit" 
         ? account.current_balance + transactionFormData.amount
         : account.current_balance - transactionFormData.amount
 
       // Add transaction
-      const client = getSupabaseClient()
-      if (!client) {
-        toast({
-          title: "Error",
-          description: "Service temporarily unavailable. Please try again later.",
-          variant: "destructive",
-        })
-        return
+      const transactionData = {
+        ...transactionFormData,
+        business_id: businessId,
+        balance_after: newBalance,
+        created_at: new Date().toISOString()
       }
-      
-      const { data: transactionData, error: transactionError } = await client
-        .from("bank_transactions")
-        .insert([
-          {
-            ...transactionFormData,
-            business_id: businessId,
-            balance_after: newBalance,
-          }
-        ])
-        .select()
-        .single()
+
+      const { error: transactionError } = await insertData('bank_transactions', transactionData)
 
       if (transactionError) throw transactionError
 
       // Update account balance
-      const { error: updateError } = await client
-        .from("bank_accounts")
-        .update({ current_balance: newBalance })
-        .eq("id", transactionFormData.account_id)
+      const { error: updateError } = await updateData('bank_accounts', account.id, {
+        current_balance: newBalance
+      })
 
       if (updateError) throw updateError
 
-      // Refresh data
+      // Reload data
       await loadData(businessId)
+      
       resetTransactionForm()
       toast({
         title: "Success",
         description: "Transaction added successfully"
       })
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error adding transaction:", error)
       toast({
         title: "Error",
-        description: "Failed to add transaction",
+        description: error?.message || "Failed to add transaction",
         variant: "destructive"
       })
     }
@@ -264,6 +328,31 @@ export default function BankAccountsPage() {
   const totalDebits = transactions
     .filter(t => t.type === "Debit")
     .reduce((sum, t) => sum + t.amount, 0)
+
+  if (loading) {
+    return (
+      <AuthenticatedLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="flex flex-col items-center space-y-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <p className="text-gray-600">Loading bank data...</p>
+          </div>
+        </div>
+      </AuthenticatedLayout>
+    )
+  }
+
+  if (!businessId) {
+    return (
+      <AuthenticatedLayout>
+        <div className="text-center py-12">
+          <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Business Selected</h2>
+          <p className="text-gray-500">Please select a business to view bank accounts</p>
+        </div>
+      </AuthenticatedLayout>
+    )
+  }
 
   return (
     <AuthenticatedLayout>

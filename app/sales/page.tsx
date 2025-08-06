@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { salesQueries } from "@/lib/supabase"
-import { TrendingUp, TrendingDown, DollarSign, FileText, Calendar, Filter, Download, Eye, RefreshCw, X, MapPin, Phone, Mail } from "lucide-react"
+import { fetchInvoices, deleteData, getCurrentUser, getSupabaseClient } from "@/lib/supabase"
+import { TrendingUp, TrendingDown, DollarSign, FileText, Calendar, Filter, Download, Eye, RefreshCw, X, MapPin, Phone, Mail, Printer, Edit, Trash2 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Separator } from "@/components/ui/separator"
 import AuthenticatedLayout from "@/components/AuthenticatedLayout"
 import { useToast } from "@/hooks/use-toast"
@@ -37,6 +38,7 @@ interface SalesData {
   id: string
   invoice_no: string
   party_name: string
+  party_id: string
   subtotal: number
   total_tax: number
   net_total: number
@@ -49,6 +51,7 @@ interface SalesData {
   gstin?: string
   state: string
   address: string
+  type: string
   created_at: string
   updated_at?: string
 }
@@ -82,6 +85,8 @@ export default function SalesPage() {
   const [businessId, setBusinessId] = useState<string>("")
   const [selectedInvoice, setSelectedInvoice] = useState<SalesData | null>(null)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   
   const { toast } = useToast()
 
@@ -93,14 +98,29 @@ export default function SalesPage() {
       loadSalesData(business.id)
       
       // Subscribe to real-time updates
-      const subscription = salesQueries.subscribeSalesUpdates(business.id, (payload) => {
-        console.log('Real-time update:', payload)
-        // Refresh data when changes occur
-        loadSalesData(business.id, false)
-      })
+      const client = getSupabaseClient()
+      if (client) {
+        const subscription = client
+          .channel('sales-updates')
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'invoices',
+              filter: `business_id=eq.${business.id} AND type=eq.sales`
+            },
+            (payload) => {
+              console.log('Real-time update:', payload)
+              // Refresh data when changes occur
+              loadSalesData(business.id, false)
+            }
+          )
+          .subscribe()
 
-      return () => {
-        subscription?.unsubscribe()
+        return () => {
+          subscription?.unsubscribe()
+        }
       }
     } else {
       setLoading(false)
@@ -117,22 +137,52 @@ export default function SalesPage() {
       if (showLoading) setLoading(true)
       else setRefreshing(true)
       
-      // Calculate date range
-      const endDate = new Date().toISOString().split('T')[0]
-      const startDate = new Date()
-      startDate.setDate(startDate.getDate() - parseInt(dateRange))
-      const startDateStr = startDate.toISOString().split('T')[0]
+      // Get current user
+      const user = await getCurrentUser()
+      if (!user) {
+        throw new Error("User not authenticated")
+      }
 
-      // Fetch sales data and stats in parallel
-      const [salesDataResult, statsResult] = await Promise.all([
-        salesQueries.getSalesData(businessId, {
-          startDate: startDateStr,
-          endDate: endDate,
-          status: statusFilter !== 'all' ? statusFilter : undefined,
-          limit: 100
-        }),
-        salesQueries.getSalesStats(businessId)
-      ])
+      // Fetch sales invoices
+      const salesDataResult = await fetchInvoices(businessId, 'sales', 100, user.id)
+      
+      // Calculate stats from the data
+      const currentDate = new Date()
+      const currentMonth = currentDate.getMonth()
+      const currentYear = currentDate.getFullYear()
+      const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1
+      const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear
+
+      const thisMonthSales = salesDataResult
+        .filter((sale: any) => {
+          const saleDate = new Date(sale.date)
+          return saleDate.getMonth() === currentMonth && saleDate.getFullYear() === currentYear
+        })
+        .reduce((sum: number, sale: any) => sum + (sale.net_total || 0), 0)
+
+      const lastMonthSales = salesDataResult
+        .filter((sale: any) => {
+          const saleDate = new Date(sale.date)
+          return saleDate.getMonth() === lastMonth && saleDate.getFullYear() === lastMonthYear
+        })
+        .reduce((sum: number, sale: any) => sum + (sale.net_total || 0), 0)
+
+      const totalSales = salesDataResult.reduce((sum: number, sale: any) => sum + (sale.net_total || 0), 0)
+      const totalPaid = salesDataResult.reduce((sum: number, sale: any) => sum + (sale.payment_received || 0), 0)
+      const totalPending = salesDataResult.reduce((sum: number, sale: any) => sum + (sale.balance_due || 0), 0)
+      const averageOrderValue = salesDataResult.length > 0 ? totalSales / salesDataResult.length : 0
+      const growthPercentage = lastMonthSales > 0 ? ((thisMonthSales - lastMonthSales) / lastMonthSales) * 100 : 0
+
+      const statsResult = {
+        total_sales: totalSales,
+        total_invoices: salesDataResult.length,
+        average_order_value: averageOrderValue,
+        pending_amount: totalPending,
+        paid_amount: totalPaid,
+        this_month_sales: thisMonthSales,
+        last_month_sales: lastMonthSales,
+        growth_percentage: growthPercentage
+      }
 
       setSalesData(salesDataResult as unknown as SalesData[])
       setFilteredData(salesDataResult as unknown as SalesData[])
@@ -162,6 +212,38 @@ export default function SalesPage() {
   const handleViewInvoice = (invoice: SalesData) => {
     setSelectedInvoice(invoice)
     setIsViewDialogOpen(true)
+  }
+
+  // Handle delete invoice
+  const handleDeleteInvoice = async (id: string) => {
+    try {
+      setDeletingId(id)
+      const { error } = await deleteData('invoices', id)
+      
+      if (error) {
+        throw error
+      }
+
+      toast({
+        title: "Success",
+        description: "Invoice deleted successfully",
+      })
+
+      // Refresh data
+      if (businessId) {
+        loadSalesData(businessId, false)
+      }
+    } catch (error: any) {
+      console.error("Error deleting invoice:", error)
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to delete invoice",
+        variant: "destructive"
+      })
+    } finally {
+      setDeletingId(null)
+      setDeleteDialogOpen(false)
+    }
   }
 
   // Filter data based on search and filters
@@ -552,7 +634,7 @@ export default function SalesPage() {
                         {format(new Date(sale.date), 'MMM dd, yyyy')}
                       </TableCell>
                       <TableCell>{Array.isArray(sale.items) ? sale.items.length : 0}</TableCell>
-                      <TableCell>{formatCurrency(sale.subtotal || 0)}</TableCell>
+                      <TableCell>{formatCurrency((sale.net_total || 0) - (sale.total_tax || 0))}</TableCell>
                       <TableCell>{formatCurrency(sale.total_tax || 0)}</TableCell>
                       <TableCell className="font-medium">
                         {formatCurrency(sale.net_total)}
@@ -568,13 +650,84 @@ export default function SalesPage() {
                         {sale.payment_method || 'Cash'}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => handleViewInvoice(sale)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => handleViewInvoice(sale)}
+                            title="View Invoice"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            asChild
+                            title="Edit Invoice"
+                          >
+                            <Link href={`/sales-entry?edit=${sale.id}`}>
+                              <Edit className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            asChild
+                            title="Print Invoice"
+                          >
+                            <Link href={`/print?id=${sale.id}`}>
+                              <Printer className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            asChild
+                            title="Download Templates"
+                          >
+                            <Link href={`/download-templates?id=${sale.id}`}>
+                              <Download className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                title="Delete Invoice"
+                                className="text-red-600 hover:text-red-700"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This action cannot be undone. This will permanently delete the invoice
+                                  and remove all associated data.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteInvoice(sale.id)}
+                                  className="bg-red-600 hover:bg-red-700"
+                                  disabled={deletingId === sale.id}
+                                >
+                                  {deletingId === sale.id ? (
+                                    <>
+                                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                                      Deleting...
+                                    </>
+                                  ) : (
+                                    'Delete Invoice'
+                                  )}
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -701,7 +854,7 @@ export default function SalesPage() {
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Subtotal:</span>
-                      <span>{formatCurrency(selectedInvoice.subtotal || 0)}</span>
+                      <span>{formatCurrency((selectedInvoice.net_total || 0) - (selectedInvoice.total_tax || 0))}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">GST:</span>
@@ -725,19 +878,65 @@ export default function SalesPage() {
 
                 {/* Actions */}
                 <Separator />
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
-                    Close
-                  </Button>
-                  <Button variant="outline">
-                    <Download className="mr-2 h-4 w-4" />
-                    Download PDF
-                  </Button>
-                  <Button asChild>
-                    <Link href={`/sales-entry?edit=${selectedInvoice.id}`}>
-                      Edit Invoice
-                    </Link>
-                  </Button>
+                <div className="flex justify-between">
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive">
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete Invoice
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This action cannot be undone. This will permanently delete the invoice
+                          {selectedInvoice.invoice_no} and remove all associated data.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleDeleteInvoice(selectedInvoice.id)}
+                          className="bg-red-600 hover:bg-red-700"
+                          disabled={deletingId === selectedInvoice.id}
+                        >
+                          {deletingId === selectedInvoice.id ? (
+                            <>
+                              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                              Deleting...
+                            </>
+                          ) : (
+                            'Delete Invoice'
+                          )}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
+                      Close
+                    </Button>
+                    <Button variant="outline" asChild>
+                      <Link href={`/print?id=${selectedInvoice.id}`}>
+                        <Printer className="mr-2 h-4 w-4" />
+                        Print Invoice
+                      </Link>
+                    </Button>
+                    <Button asChild>
+                      <Link href={`/download-templates?id=${selectedInvoice.id}`}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Download Templates
+                      </Link>
+                    </Button>
+                    <Button variant="outline" asChild>
+                      <Link href={`/sales-entry?edit=${selectedInvoice.id}`}>
+                        <Edit className="mr-2 h-4 w-4" />
+                        Edit Invoice
+                      </Link>
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
