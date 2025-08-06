@@ -160,10 +160,11 @@ export default function PurchaseEntry() {
           if (Array.isArray(invoice.items)) {
             // Old format - items is an array
             extractedItems = invoice.items
-          } else if (typeof invoice.items === 'object' && invoice.items.items) {
+          } else if (typeof invoice.items === 'object' && (invoice.items as any).items) {
             // New format - items is an object with payment_mode and items
-            extractedPaymentMode = invoice.items.payment_mode || "Cash"
-            extractedItems = invoice.items.items || []
+            const itemsObj = invoice.items as any
+            extractedPaymentMode = itemsObj.payment_mode || "Cash"
+            extractedItems = itemsObj.items || []
           }
         }
 

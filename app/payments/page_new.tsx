@@ -85,21 +85,22 @@ export default function PaymentsPage() {
       
       // Load data in parallel
       const [paymentsData, partiesData, invoicesData] = await Promise.all([
-        queryBuilder('payments', { business_id: businessId }, { orderBy: 'date', ascending: false }),
+        queryBuilder('payments', '*', { business_id: businessId }, { orderBy: 'date', ascending: false }),
         fetchParties(businessId, undefined, user?.id),
         fetchInvoices(businessId, undefined, 100, user?.id)
       ])
 
-      setPayments(paymentsData)
+      setPayments(paymentsData as unknown as Payment[])
       setParties(partiesData)
       setInvoices(invoicesData)
 
-      // Calculate stats
-      const totalReceived = paymentsData
+      // Calculate stats with properly typed data
+      const typedPayments = paymentsData as unknown as Payment[]
+      const totalReceived = typedPayments
         .filter((p: Payment) => p.type === 'Received')
         .reduce((sum: number, p: Payment) => sum + p.amount, 0)
       
-      const totalPaid = paymentsData
+      const totalPaid = typedPayments
         .filter((p: Payment) => p.type === 'Paid')
         .reduce((sum: number, p: Payment) => sum + p.amount, 0)
 

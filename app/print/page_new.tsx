@@ -24,7 +24,7 @@ interface Business {
 }
 
 interface InvoiceData {
-  id: number
+  id: string
   invoice_no: string
   date: string
   party_name: string
@@ -68,8 +68,13 @@ export default function PrintPage() {
 
         // Fetch invoice data
         const invoiceData = await salesQueries.getSalesData(invoiceId)
-        if (invoiceData) {
-          setInvoice(invoiceData)
+        if (invoiceData && invoiceData.length > 0) {
+          const firstInvoice = invoiceData[0] as any
+          const transformedInvoice = {
+            ...firstInvoice,
+            id: String(firstInvoice.id)
+          } as unknown as InvoiceData
+          setInvoice(transformedInvoice)
         } else {
           setError('Invoice not found')
         }

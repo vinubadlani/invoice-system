@@ -341,10 +341,11 @@ export default function SalesEntry() {
       }
 
       // Auto-record payment if payment_received > 0 and this is a new invoice
-      if (!editingInvoice && totals.paymentReceived > 0 && result.data) {
+      if (!editingInvoice && totals.paymentReceived > 0 && result.data && business) {
+        const selectedParty = parties.find(p => p.id === formData.party_id)
         const paymentData = {
-          business_id: selectedBusiness.id,
-          party_name: formData.party_name,
+          business_id: business.id,
+          party_name: selectedParty?.name || '',
           invoice_no: formData.invoice_no,
           type: "Received", // For sales, we receive payment from customer
           amount: totals.paymentReceived,

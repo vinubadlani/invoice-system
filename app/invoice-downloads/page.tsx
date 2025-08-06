@@ -116,7 +116,7 @@ export default function InvoiceDownloadPage() {
                 .limit(1)
               
               if (data && data.length > 0) {
-                setBusiness(data[0] as Business)
+                setBusiness(data[0] as unknown as Business)
               } else {
                 setError('Please set up your business information in Settings first')
                 return
@@ -134,13 +134,12 @@ export default function InvoiceDownloadPage() {
         // Fetch invoice data
         const invoiceData = await salesQueries.getInvoiceById(invoiceId)
         if (invoiceData) {
-          // Ensure all required fields are present
-          const formattedInvoice: InvoiceData = {
+          // Ensure all required fields are present with proper typing
+          const formattedInvoice = {
             ...invoiceData,
-            id: String(invoiceData.id),
-            status: invoiceData.status || 'pending'
+            id: String(invoiceData.id)
           }
-          setInvoice(formattedInvoice)
+          setInvoice(formattedInvoice as InvoiceData)
         } else {
           setError('Invoice not found')
         }
@@ -345,7 +344,7 @@ export default function InvoiceDownloadPage() {
                   <div className="border border-gray-200 rounded-lg p-2 bg-gray-50 overflow-hidden">
                     <div className="transform scale-25 origin-top-left w-[400%] h-[300px] overflow-hidden">
                       {React.createElement(template.component, {
-                        invoice,
+                        invoice: { ...invoice, id: String(invoice.id) },
                         business
                       })}
                     </div>
@@ -419,7 +418,7 @@ export default function InvoiceDownloadPage() {
                 <div className="transform scale-75 origin-top-left w-[133%]">
                   {React.createElement(
                     INVOICE_TEMPLATES.find(t => t.id === selectedTemplate)?.component || INVOICE_TEMPLATES[0].component,
-                    { invoice, business }
+                    { invoice: { ...invoice, id: String(invoice.id) }, business }
                   )}
                 </div>
               </div>
