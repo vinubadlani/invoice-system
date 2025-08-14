@@ -129,10 +129,38 @@ export default function Dashboard() {
 
   // Memoized quick actions to prevent re-renders
   const quickActions = useMemo(() => [
-    { title: "New Sale", href: "/sales-entry", icon: ShoppingCart, color: "bg-blue-500" },
-    { title: "New Purchase", href: "/purchase-entry", icon: Package, color: "bg-green-500" },
-    { title: "Add Party", href: "/party", icon: Users, color: "bg-purple-500" },
-    { title: "Add Item", href: "/item", icon: FileText, color: "bg-orange-500" },
+    { 
+      title: "New Sale", 
+      href: "/sales-entry", 
+      icon: "💰", 
+      description: "Create sales invoice",
+      gradient: "from-blue-500 to-blue-600",
+      hoverGradient: "from-blue-600 to-blue-700"
+    },
+    { 
+      title: "New Purchase", 
+      href: "/purchase-entry", 
+      icon: "📦", 
+      description: "Record purchase entry",
+      gradient: "from-green-500 to-green-600",
+      hoverGradient: "from-green-600 to-green-700"
+    },
+    { 
+      title: "Add Party", 
+      href: "/party", 
+      icon: "👥", 
+      description: "Manage customers & suppliers",
+      gradient: "from-purple-500 to-purple-600",
+      hoverGradient: "from-purple-600 to-purple-700"
+    },
+    { 
+      title: "Add Item", 
+      href: "/item", 
+      icon: "📋", 
+      description: "Manage inventory items",
+      gradient: "from-orange-500 to-orange-600",
+      hoverGradient: "from-orange-600 to-orange-700"
+    },
   ], [])
 
   if (loading) {
@@ -159,7 +187,7 @@ export default function Dashboard() {
 
   return (
     <AuthenticatedLayout>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800" style={{ transform: 'scale(0.8)', transformOrigin: 'top left', width: '125%' }}>
         <div className="p-6 space-y-8">
           {/* Modern Header with Gradient */}
           <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 rounded-2xl shadow-2xl">
@@ -284,16 +312,33 @@ export default function Dashboard() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 {quickActions.map((action) => (
                   <Link key={action.title} href={action.href}>
-                    <div className="group relative p-6 bg-gradient-to-br from-white to-slate-50 rounded-xl border border-slate-200 hover:border-slate-300 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer">
-                      <div className="flex flex-col items-center text-center space-y-3">
-                        <div className={`p-4 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300 ${action.color.replace('bg-', 'bg-gradient-to-br from-').replace('-500', '-400 to-' + action.color.split('-')[1] + '-600')}`}>
-                          <action.icon className="h-8 w-8 text-white" />
+                    <div className="group relative p-6 bg-gradient-to-br from-white to-slate-50 rounded-xl border border-slate-200 hover:border-slate-300 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-2 cursor-pointer overflow-hidden">
+                      {/* Background gradient effect */}
+                      <div className={`absolute inset-0 bg-gradient-to-br ${action.gradient} opacity-0 group-hover:opacity-5 transition-opacity duration-300`}></div>
+                      
+                      <div className="relative flex flex-col items-center text-center space-y-4">
+                        {/* Enhanced icon container */}
+                        <div className={`relative p-4 rounded-2xl shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-110 bg-gradient-to-br ${action.gradient} group-hover:${action.hoverGradient}`}>
+                          <span className="text-2xl text-white filter drop-shadow-sm">{action.icon}</span>
+                          
+                          {/* Shine effect */}
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl"></div>
                         </div>
-                        <span className="text-sm font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">
-                          {action.title}
-                        </span>
+                        
+                        <div>
+                          <span className="text-sm font-bold text-slate-800 group-hover:text-slate-900 transition-colors block mb-1">
+                            {action.title}
+                          </span>
+                          <span className="text-xs text-slate-500 group-hover:text-slate-600 transition-colors">
+                            {action.description}
+                          </span>
+                        </div>
                       </div>
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-xl"></div>
+                      
+                      {/* Subtle border glow on hover */}
+                      <div className={`absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-lg bg-gradient-to-r ${action.gradient} p-[1px]`}>
+                        <div className="w-full h-full bg-white rounded-xl"></div>
+                      </div>
                     </div>
                   </Link>
                 ))}

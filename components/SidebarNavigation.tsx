@@ -29,6 +29,7 @@ import {
   ChevronLeft,
   ChevronRight,
   SwitchCamera,
+  Receipt,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -64,6 +65,7 @@ const navigationSections = [
       { name: "Sales", href: "/sales", icon: FileText },
       { name: "Purchases", href: "/purchases", icon: FileText },
       { name: "Payments", href: "/payments", icon: CreditCard },
+      { name: "Expenses", href: "/expenses", icon: Receipt },
     ]
   },
   {
@@ -94,7 +96,7 @@ export default function SidebarNavigation({ businessName, onBusinessChange }: Si
   const { theme, setTheme } = useTheme()
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isMobileOpen, setIsMobileOpen] = useState(false)
-  const [showBusinessSelector, setShowBusinessSelector] = useState(false)
+  // const [showBusinessSelector, setShowBusinessSelector] = useState(false)
 
   const handleSignOut = async () => {
     try {
@@ -149,7 +151,8 @@ export default function SidebarNavigation({ businessName, onBusinessChange }: Si
                     {businessName || "Business Management"}
                   </p>
                 </div>
-                <Button
+                {/* Business Switch Button - Commented out for now */}
+                {/* <Button
                   variant="outline"
                   size="sm"
                   className="text-xs px-2 py-1 h-7"
@@ -157,7 +160,7 @@ export default function SidebarNavigation({ businessName, onBusinessChange }: Si
                 >
                   <SwitchCamera className="h-3 w-3 mr-1" />
                   Switch Business
-                </Button>
+                </Button> */}
               </div>
             )}
             
@@ -368,8 +371,8 @@ export default function SidebarNavigation({ businessName, onBusinessChange }: Si
         </div>
       </div>
 
-      {/* Business Selector Modal */}
-      {showBusinessSelector && (
+      {/* Business Selector Modal - Commented out for now */}
+      {/* {showBusinessSelector && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
             <div className="flex justify-between items-center mb-4">
@@ -395,7 +398,7 @@ export default function SidebarNavigation({ businessName, onBusinessChange }: Si
             />
           </div>
         </div>
-      )}
+      )} */}
     </>
   )
 }

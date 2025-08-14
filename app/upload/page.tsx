@@ -110,7 +110,10 @@ export default function UploadPage() {
       parties: 0,
       items: 0,
       invoices: 0,
-      payments: 0
+      payments: 0,
+      sales: 0,
+      purchases: 0,
+      expenses: 0
     }
 
     // Import parties
@@ -166,7 +169,7 @@ export default function UploadPage() {
 
     // Import payments
     if (data.payments && Array.isArray(data.payments)) {
-      setUploadProgress(90)
+      setUploadProgress(75)
       for (const payment of data.payments) {
         try {
           await client.from("payments").insert([{
@@ -177,6 +180,57 @@ export default function UploadPage() {
           imported.payments++
         } catch (error) {
           console.error("Error importing payment:", error)
+        }
+      }
+    }
+
+    // Import sales
+    if (data.sales && Array.isArray(data.sales)) {
+      setUploadProgress(80)
+      for (const sale of data.sales) {
+        try {
+          await client.from("sales").insert([{
+            ...sale,
+            business_id: businessId,
+            id: undefined
+          }])
+          imported.sales++
+        } catch (error) {
+          console.error("Error importing sale:", error)
+        }
+      }
+    }
+
+    // Import purchases
+    if (data.purchases && Array.isArray(data.purchases)) {
+      setUploadProgress(85)
+      for (const purchase of data.purchases) {
+        try {
+          await client.from("purchases").insert([{
+            ...purchase,
+            business_id: businessId,
+            id: undefined
+          }])
+          imported.purchases++
+        } catch (error) {
+          console.error("Error importing purchase:", error)
+        }
+      }
+    }
+
+    // Import expenses
+    if (data.expenses && Array.isArray(data.expenses)) {
+      setUploadProgress(90)
+      for (const expense of data.expenses) {
+        try {
+          await client.from("expenses").insert([{
+            ...expense,
+            business_id: businessId,
+            id: undefined
+          }])
+          imported.expenses++
+        } catch (error) {
+          console.error("Error importing expense:", error)
         }
       }
     }
@@ -209,6 +263,12 @@ export default function UploadPage() {
       type = 'parties'
     } else if (headers.includes('name') && headers.includes('sales_price')) {
       type = 'items'
+    } else if (headers.includes('invoice_number') && headers.includes('party_name')) {
+      type = 'sales'
+    } else if (headers.includes('bill_number') && headers.includes('supplier_name')) {
+      type = 'purchases'
+    } else if (headers.includes('description') && headers.includes('amount') && headers.includes('category')) {
+      type = 'expenses'
     }
 
     if (type === 'unknown') {
@@ -248,6 +308,36 @@ export default function UploadPage() {
             gst_percent: parseFloat(row.gst_percent) || 0,
             opening_stock: parseFloat(row.opening_stock) || 0
           }])
+        } else if (type === 'sales') {
+          await client.from("sales").insert([{
+            ...row,
+            business_id: businessId,
+            amount: parseFloat(row.amount) || 0,
+            gst_amount: parseFloat(row.gst_amount) || 0,
+            total_amount: parseFloat(row.total_amount) || 0,
+            quantity: parseFloat(row.quantity) || 0,
+            rate: parseFloat(row.rate) || 0,
+            invoice_date: row.invoice_date || new Date().toISOString().split('T')[0]
+          }])
+        } else if (type === 'purchases') {
+          await client.from("purchases").insert([{
+            ...row,
+            business_id: businessId,
+            amount: parseFloat(row.amount) || 0,
+            gst_amount: parseFloat(row.gst_amount) || 0,
+            total_amount: parseFloat(row.total_amount) || 0,
+            quantity: parseFloat(row.quantity) || 0,
+            rate: parseFloat(row.rate) || 0,
+            bill_date: row.bill_date || new Date().toISOString().split('T')[0]
+          }])
+        } else if (type === 'expenses') {
+          await client.from("expenses").insert([{
+            ...row,
+            business_id: businessId,
+            amount: parseFloat(row.amount) || 0,
+            gst_amount: parseFloat(row.gst_amount) || 0,
+            expense_date: row.expense_date || new Date().toISOString().split('T')[0]
+          }])
         }
         imported++
       } catch (error) {
@@ -276,6 +366,18 @@ export default function UploadPage() {
       csvContent = "name,code,hsn_code,gst_percent,unit,sales_price,purchase_price,opening_stock,description\n"
       csvContent += "Sample Item,ITM001,1234,18,Pcs,100,80,50,Sample item description\n"
       filename = "items_template.csv"
+    } else if (type === 'sales') {
+      csvContent = "invoice_number,invoice_date,party_name,item_name,quantity,rate,amount,gst_amount,total_amount,payment_mode,notes\n"
+      csvContent += "INV001,2024-01-15,ABC Company,Sample Product,10,100,1000,180,1180,Cash,Sample sales entry\n"
+      filename = "sales_template.csv"
+    } else if (type === 'purchases') {
+      csvContent = "bill_number,bill_date,supplier_name,item_name,quantity,rate,amount,gst_amount,total_amount,payment_mode,notes\n"
+      csvContent += "BILL001,2024-01-15,XYZ Supplier,Raw Material,20,50,1000,180,1180,Credit,Sample purchase entry\n"
+      filename = "purchases_template.csv"
+    } else if (type === 'expenses') {
+      csvContent = "expense_date,description,category,amount,gst_amount,payment_mode,vendor,notes\n"
+      csvContent += "2024-01-15,Office Rent,Rent,15000,0,Bank Transfer,Property Owner,Monthly office rent\n"
+      filename = "expenses_template.csv"
     }
 
     const blob = new Blob([csvContent], { type: "text/csv" })
@@ -375,7 +477,7 @@ export default function UploadPage() {
           </TabsContent>
 
           <TabsContent value="templates">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center">
@@ -392,7 +494,7 @@ export default function UploadPage() {
                   </div>
                   <Button onClick={() => downloadTemplate('parties')}>
                     <Download className="h-4 w-4 mr-2" />
-                    Download Parties Template
+                    Download Template
                   </Button>
                 </CardContent>
               </Card>
@@ -413,7 +515,70 @@ export default function UploadPage() {
                   </div>
                   <Button onClick={() => downloadTemplate('items')}>
                     <Download className="h-4 w-4 mr-2" />
-                    Download Items Template
+                    Download Template
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <FileText className="h-5 w-5 mr-2" />
+                    Sales Template
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Download a CSV template for importing sales transactions
+                  </p>
+                  <div className="text-xs text-gray-500 mb-4">
+                    <p>Columns: invoice_number, invoice_date, party_name, item_name, quantity, rate, amount, gst_amount, total_amount, payment_mode, notes</p>
+                  </div>
+                  <Button onClick={() => downloadTemplate('sales')}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Download Template
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <FileText className="h-5 w-5 mr-2" />
+                    Purchases Template
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Download a CSV template for importing purchase transactions
+                  </p>
+                  <div className="text-xs text-gray-500 mb-4">
+                    <p>Columns: bill_number, bill_date, supplier_name, item_name, quantity, rate, amount, gst_amount, total_amount, payment_mode, notes</p>
+                  </div>
+                  <Button onClick={() => downloadTemplate('purchases')}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Download Template
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <FileText className="h-5 w-5 mr-2" />
+                    Expenses Template
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Download a CSV template for importing expense records
+                  </p>
+                  <div className="text-xs text-gray-500 mb-4">
+                    <p>Columns: expense_date, description, category, amount, gst_amount, payment_mode, vendor, notes</p>
+                  </div>
+                  <Button onClick={() => downloadTemplate('expenses')}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Download Template
                   </Button>
                 </CardContent>
               </Card>
@@ -427,12 +592,28 @@ export default function UploadPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2 text-sm text-gray-600">
-                  <p>• <strong>JSON Format:</strong> You can upload backup files exported from the Settings page</p>
-                  <p>• <strong>CSV Format:</strong> Use the templates provided above for proper column structure</p>
-                  <p>• <strong>Data Validation:</strong> Ensure all required fields are filled and data types are correct</p>
-                  <p>• <strong>Duplicates:</strong> The system will skip duplicate entries based on unique identifiers</p>
-                  <p>• <strong>Large Files:</strong> For files with many records, the import process may take some time</p>
+                <div className="space-y-3 text-sm text-gray-600">
+                  <div>
+                    <p className="font-semibold mb-2">File Formats:</p>
+                    <p>• <strong>JSON Format:</strong> You can upload backup files exported from the Settings page</p>
+                    <p>• <strong>CSV Format:</strong> Use the templates provided above for proper column structure</p>
+                  </div>
+                  
+                  <div>
+                    <p className="font-semibold mb-2">Data Requirements:</p>
+                    <p>• <strong>Sales:</strong> invoice_number, party_name, and amount are required fields</p>
+                    <p>• <strong>Purchases:</strong> bill_number, supplier_name, and amount are required fields</p>
+                    <p>• <strong>Expenses:</strong> description, category, and amount are required fields</p>
+                    <p>• <strong>Date Format:</strong> Use YYYY-MM-DD format (e.g., 2024-01-15)</p>
+                  </div>
+
+                  <div>
+                    <p className="font-semibold mb-2">Important Notes:</p>
+                    <p>• <strong>Data Validation:</strong> Ensure all required fields are filled and data types are correct</p>
+                    <p>• <strong>Duplicates:</strong> The system will skip duplicate entries based on unique identifiers</p>
+                    <p>• <strong>Large Files:</strong> For files with many records, the import process may take some time</p>
+                    <p>• <strong>Party/Item Names:</strong> Should match existing entries or will be created as new records</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>

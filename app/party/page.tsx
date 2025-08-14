@@ -233,10 +233,21 @@ export default function PartyPage() {
       // Clear cache to ensure fresh data
       clearCache()
       
-      alert("Party deleted successfully!")
+      // Close the form if we're in edit mode
+      setIsFormOpen(false)
+      setEditingParty(null)
+      
+      toast({
+        title: "Success",
+        description: "Party deleted successfully!"
+      })
     } catch (error) {
       console.error("Error deleting party:", error)
-      alert("Failed to delete party. Please try again.")
+      toast({
+        title: "Error",
+        description: "Failed to delete party. Please try again.",
+        variant: "destructive"
+      })
     }
   }
 
@@ -373,9 +384,6 @@ export default function PartyPage() {
     <div className="flex items-center gap-2">
       <Button variant="ghost" size="sm" onClick={() => handleEdit(party)} className="text-blue-600 hover:text-blue-800 hover:bg-blue-50">
         <Edit className="h-4 w-4" />
-      </Button>
-      <Button variant="ghost" size="sm" onClick={() => handleDelete(party)} className="text-red-600 hover:text-red-800 hover:bg-red-50">
-        <Trash2 className="h-4 w-4" />
       </Button>
     </div>
   )
@@ -564,22 +572,36 @@ export default function PartyPage() {
                   />
                 </div>
 
-                <div className="flex justify-end gap-3 pt-4">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={() => {
-                      setIsFormOpen(false)
-                      setEditingParty(null)
-                    }}
-                  >
-                    <X className="h-4 w-4 mr-2" />
-                    Cancel
-                  </Button>
-                  <Button type="submit">
-                    <Save className="h-4 w-4 mr-2" />
-                    {editingParty ? "Update" : "Save"} Party
-                  </Button>
+                <div className="flex justify-between items-center pt-4">
+                  {editingParty && (
+                    <Button 
+                      type="button" 
+                      variant="destructive"
+                      onClick={() => handleDelete(editingParty)}
+                      className="mr-auto"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Party
+                    </Button>
+                  )}
+                  
+                  <div className="flex gap-3 ml-auto">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => {
+                        setIsFormOpen(false)
+                        setEditingParty(null)
+                      }}
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Cancel
+                    </Button>
+                    <Button type="submit">
+                      <Save className="h-4 w-4 mr-2" />
+                      {editingParty ? "Update" : "Save"} Party
+                    </Button>
+                  </div>
                 </div>
               </form>
             </div>

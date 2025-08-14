@@ -21,7 +21,8 @@ interface BankAccount {
   account_number: string
   account_type: "Savings" | "Current" | "Fixed Deposit" | "Credit Card"
   ifsc_code: string
-  branch: string
+  branch_name?: string
+  account_holder_name: string
   opening_balance: number
   current_balance: number
   created_at: string
@@ -30,13 +31,12 @@ interface BankAccount {
 interface BankTransaction {
   id: string
   business_id: string
-  account_id: string
+  bank_account_id: string
   date: string
   type: "Credit" | "Debit"
   amount: number
   description: string
   reference_number?: string
-  balance_after: number
   created_at: string
 }
 
@@ -55,7 +55,8 @@ export default function BankAccountsPage() {
     account_number: "",
     account_type: "Savings" as "Savings" | "Current" | "Fixed Deposit" | "Credit Card",
     ifsc_code: "",
-    branch: "",
+    branch_name: "",
+    account_holder_name: "",
     opening_balance: 0,
   })
 
@@ -115,18 +116,23 @@ export default function BankAccountsPage() {
       setAccounts((accountsData as any[]) || [])
 
       // Load bank transactions with secure query
-      const transactionsData = await queryBuilder(
-        'bank_transactions',
-        '*',
-        { business_id: businessId },
-        { 
-          orderBy: 'date', 
-          ascending: false,
-          limit: 100
-        }
-      )
-      
-      setTransactions((transactionsData as any[]) || [])
+      try {
+        const transactionsData = await queryBuilder(
+          'bank_transactions',
+          '*',
+          { business_id: businessId },
+          { 
+            orderBy: 'date', 
+            ascending: false,
+            limit: 100
+          }
+        )
+        setTransactions((transactionsData as any[]) || [])
+      } catch (transactionError) {
+        console.error("Error loading transactions:", transactionError)
+        // Continue without transactions if table doesn't exist or has schema issues
+        setTransactions([])
+      }
 
     } catch (error: any) {
       console.error("Error loading bank data:", error)
@@ -165,15 +171,24 @@ export default function BankAccountsPage() {
       }
       
       const accountData = {
-        ...accountFormData,
         business_id: businessId,
+        bank_name: accountFormData.bank_name.trim(),
+        account_number: accountFormData.account_number.trim(),
+        account_type: accountFormData.account_type,
+        ifsc_code: accountFormData.ifsc_code.trim(),
+        branch_name: accountFormData.branch_name.trim() || "Main Branch", // Provide default value for NOT NULL constraint
+        account_holder_name: accountFormData.account_holder_name.trim() || "Account Holder", // Provide default value for NOT NULL constraint
+        opening_balance: accountFormData.opening_balance,
         current_balance: accountFormData.opening_balance,
         created_at: new Date().toISOString()
       }
 
       const { data, error } = await insertData('bank_accounts', accountData)
 
-      if (error) throw error
+      if (error) {
+        console.error("Bank account creation error:", error)
+        throw error
+      }
 
       // Reload data to get the new account
       await loadData(businessId)
@@ -227,6 +242,16 @@ export default function BankAccountsPage() {
         return
       }
 
+      const account = accounts.find(acc => acc.id === transactionFormData.account_id)
+      if (!account) {
+        toast({
+          title: "Error",
+          description: "Selected account not found. Please refresh and try again.",
+          variant: "destructive"
+        })
+        return
+      }
+
       if (!transactionFormData.amount || transactionFormData.amount <= 0) {
         toast({
           title: "Validation Error",
@@ -245,31 +270,28 @@ export default function BankAccountsPage() {
         return
       }
 
-      const account = accounts.find(acc => acc.id === transactionFormData.account_id)
-      if (!account) {
-        toast({
-          title: "Error",
-          description: "Please select a valid account",
-          variant: "destructive"
-        })
-        return
-      }
-
       const newBalance = transactionFormData.type === "Credit" 
         ? account.current_balance + transactionFormData.amount
         : account.current_balance - transactionFormData.amount
 
       // Add transaction
       const transactionData = {
-        ...transactionFormData,
         business_id: businessId,
-        balance_after: newBalance,
+        bank_account_id: transactionFormData.account_id, // Use bank_account_id instead of account_id
+        date: transactionFormData.date,
+        type: transactionFormData.type,
+        amount: transactionFormData.amount,
+        description: transactionFormData.description.trim(),
+        reference_number: transactionFormData.reference_number?.trim() || null,
         created_at: new Date().toISOString()
       }
 
       const { error: transactionError } = await insertData('bank_transactions', transactionData)
 
-      if (transactionError) throw transactionError
+      if (transactionError) {
+        console.error("Transaction insertion error:", transactionError)
+        throw transactionError
+      }
 
       // Update account balance
       const { error: updateError } = await updateData('bank_accounts', account.id, {
@@ -303,7 +325,8 @@ export default function BankAccountsPage() {
       account_number: "",
       account_type: "Savings",
       ifsc_code: "",
-      branch: "",
+      branch_name: "",
+      account_holder_name: "",
       opening_balance: 0,
     })
     setIsAccountFormOpen(false)
@@ -479,6 +502,16 @@ export default function BankAccountsPage() {
                   />
                 </div>
                 <div>
+                  <Label htmlFor="account_holder_name">Account Holder Name</Label>
+                  <Input
+                    id="account_holder_name"
+                    required
+                    value={accountFormData.account_holder_name}
+                    onChange={(e) => setAccountFormData({...accountFormData, account_holder_name: e.target.value})}
+                    placeholder="John Doe"
+                  />
+                </div>
+                <div>
                   <Label htmlFor="account_number">Account Number</Label>
                   <Input
                     id="account_number"
@@ -518,12 +551,12 @@ export default function BankAccountsPage() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="branch">Branch</Label>
+                  <Label htmlFor="branch_name">Branch Name</Label>
                   <Input
-                    id="branch"
+                    id="branch_name"
                     required
-                    value={accountFormData.branch}
-                    onChange={(e) => setAccountFormData({...accountFormData, branch: e.target.value})}
+                    value={accountFormData.branch_name}
+                    onChange={(e) => setAccountFormData({...accountFormData, branch_name: e.target.value})}
                     placeholder="Main Branch"
                   />
                 </div>
@@ -672,7 +705,7 @@ export default function BankAccountsPage() {
                         <p className="text-slate-600">Account: {account.account_number}</p>
                         <div className="flex items-center gap-4 text-sm text-slate-500">
                           <span>IFSC: {account.ifsc_code}</span>
-                          <span>Branch: {account.branch}</span>
+                          {account.branch && <span>Branch: {account.branch}</span>}
                           <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                             {account.account_type}
                           </Badge>
@@ -719,7 +752,7 @@ export default function BankAccountsPage() {
                           {new Date(transaction.date).toLocaleDateString('en-IN')}
                         </td>
                         <td className="p-4 text-slate-800">
-                          {accounts.find(acc => acc.id === transaction.account_id)?.bank_name}
+                          {accounts.find(acc => acc.id === (transaction.account_id || transaction.bank_account_id))?.bank_name}
                         </td>
                         <td className="p-4">
                           <Badge 

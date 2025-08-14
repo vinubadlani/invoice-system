@@ -7,6 +7,7 @@ ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bank_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bank_transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies if they exist
 DROP POLICY IF EXISTS "Users can view own profile" ON public.users;
@@ -40,6 +41,10 @@ DROP POLICY IF EXISTS "Users can update bank_accounts of own businesses" ON publ
 DROP POLICY IF EXISTS "Users can view bank_transactions of own businesses" ON public.bank_transactions;
 DROP POLICY IF EXISTS "Users can create bank_transactions for own businesses" ON public.bank_transactions;
 DROP POLICY IF EXISTS "Users can update bank_transactions of own businesses" ON public.bank_transactions;
+
+DROP POLICY IF EXISTS "Users can view expenses of own businesses" ON public.expenses;
+DROP POLICY IF EXISTS "Users can create expenses for own businesses" ON public.expenses;
+DROP POLICY IF EXISTS "Users can update expenses of own businesses" ON public.expenses;
 
 -- Create RLS policies for users table
 CREATE POLICY "Users can view own profile" ON public.users
@@ -187,6 +192,28 @@ CREATE POLICY "Users can create bank_transactions for own businesses" ON public.
   );
 
 CREATE POLICY "Users can update bank_transactions of own businesses" ON public.bank_transactions
+  FOR UPDATE USING (
+    business_id IN (
+      SELECT id FROM public.businesses WHERE user_id = auth.uid()
+    )
+  );
+
+-- Create RLS policies for expenses table
+CREATE POLICY "Users can view expenses of own businesses" ON public.expenses
+  FOR SELECT USING (
+    business_id IN (
+      SELECT id FROM public.businesses WHERE user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can create expenses for own businesses" ON public.expenses
+  FOR INSERT WITH CHECK (
+    business_id IN (
+      SELECT id FROM public.businesses WHERE user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can update expenses of own businesses" ON public.expenses
   FOR UPDATE USING (
     business_id IN (
       SELECT id FROM public.businesses WHERE user_id = auth.uid()

@@ -127,6 +127,23 @@ CREATE TABLE IF NOT EXISTS public.bank_transactions (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Create expenses table
+CREATE TABLE IF NOT EXISTS public.expenses (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  business_id UUID REFERENCES public.businesses(id) ON DELETE CASCADE NOT NULL,
+  date DATE NOT NULL,
+  category TEXT NOT NULL,
+  description TEXT NOT NULL,
+  amount DECIMAL(15,2) NOT NULL CHECK (amount > 0),
+  payment_mode TEXT NOT NULL DEFAULT 'Cash',
+  vendor_name TEXT,
+  invoice_no TEXT,
+  remarks TEXT,
+  created_by UUID REFERENCES public.users(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_businesses_user_id ON public.businesses(user_id);
 CREATE INDEX IF NOT EXISTS idx_parties_business_id ON public.parties(business_id);
@@ -137,3 +154,6 @@ CREATE INDEX IF NOT EXISTS idx_payments_business_id ON public.payments(business_
 CREATE INDEX IF NOT EXISTS idx_bank_accounts_business_id ON public.bank_accounts(business_id);
 CREATE INDEX IF NOT EXISTS idx_bank_transactions_business_id ON public.bank_transactions(business_id);
 CREATE INDEX IF NOT EXISTS idx_bank_transactions_account_id ON public.bank_transactions(account_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_business_id ON public.expenses(business_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_date ON public.expenses(date);
+CREATE INDEX IF NOT EXISTS idx_expenses_category ON public.expenses(category);

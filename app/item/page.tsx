@@ -206,7 +206,25 @@ export default function ItemMaster() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!businessId) return
+    
+    // Validate required fields
+    if (!formData.name.trim() || !formData.code.trim()) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields (Item Name and Code).",
+        variant: "destructive"
+      })
+      return
+    }
+    
+    if (!businessId) {
+      toast({
+        title: "Error", 
+        description: "No business selected. Please select a business first.",
+        variant: "destructive"
+      })
+      return
+    }
 
     try {
       const client = getSupabaseClient()
@@ -219,31 +237,121 @@ export default function ItemMaster() {
         return
       }
       
+      // Prepare clean form data
+      const cleanFormData = {
+        name: formData.name.trim(),
+        code: formData.code.trim(),
+        hsn_code: formData.hsn_code.trim() || "",
+        gst_percent: Number(formData.gst_percent) || 0,
+        unit: formData.unit.trim() || "",
+        sales_price: Number(formData.sales_price) || 0,
+        purchase_price: Number(formData.purchase_price) || 0,
+        opening_stock: Number(formData.opening_stock) || 0,
+        description: formData.description.trim() || "",
+      }
+
+      // Check for duplicate item code when creating new item
+      if (!editingItem) {
+        const { data: existingItems, error: checkError } = await client
+          .from("items")
+          .select("id, name, code")
+          .eq("business_id", businessId)
+          .eq("code", cleanFormData.code)
+          .limit(1)
+
+        // If there's an error that's not "no rows returned", handle it
+        if (checkError && checkError.code !== 'PGRST116') {
+          console.error("Error checking for duplicate item:", checkError)
+          throw checkError
+        }
+
+        // If we found existing items, it's a duplicate
+        if (existingItems && existingItems.length > 0) {
+          toast({
+            title: "Error",
+            description: `Item code "${cleanFormData.code}" already exists. Please use a different code.`,
+            variant: "destructive"
+          })
+          return
+        }
+      }
+      
       if (editingItem) {
-        const { error } = await client.from("items").update(formData).eq("id", editingItem.id)
+        const { error } = await client
+          .from("items")
+          .update(cleanFormData)
+          .eq("id", editingItem.id)
+          .eq("business_id", businessId)
 
-        if (error) throw error
+        if (error) {
+          console.error("Update error details:", error)
+          throw error
+        }
 
-        const updatedItems = items.map((item) => (item.id === editingItem.id ? { ...item, ...formData } : item))
+        const updatedItems = items.map((item) => 
+          item.id === editingItem.id ? { ...item, ...cleanFormData } : item
+        )
         setItems(updatedItems)
         setFilteredItems(updatedItems)
         setEditingItem(null)
+        
+        toast({
+          title: "Success",
+          description: "Item updated successfully!"
+        })
       } else {
         const { data, error } = await client
           .from("items")
-          .insert([{ ...formData, business_id: businessId }])
+          .insert([{ ...cleanFormData, business_id: businessId }])
           .select()
           .single()
 
-        if (error) throw error
+        if (error) {
+          console.error("Insert error details:", error)
+          throw error
+        }
+        
         const newItems = [data as unknown as Item, ...items]
         setItems(newItems)
         setFilteredItems(newItems)
+        
+        toast({
+          title: "Success",
+          description: "Item created successfully!"
+        })
       }
       resetForm()
       clearCache()
     } catch (error) {
-      console.error("Error saving item:", error)
+      console.error("Error saving item - Full error object:", JSON.stringify(error, null, 2))
+      
+      let errorMessage = "Failed to save item. Please try again."
+      
+      // Handle specific Supabase errors
+      if (error && typeof error === 'object') {
+        // Handle duplicate key constraint violation
+        if ('code' in error && error.code === '23505') {
+          const errorDetails = 'details' in error ? error.details as string : ''
+          if (errorDetails && errorDetails.includes('items_business_id_code_key')) {
+            const itemCode = editingItem ? editingItem.code : formData.code.trim()
+            errorMessage = `Item code "${itemCode}" already exists. Please use a different code.`
+          } else {
+            errorMessage = "This item already exists. Please check your data."
+          }
+        } else if ('message' in error) {
+          errorMessage = error.message as string
+        } else if ('error_description' in error) {
+          errorMessage = error.error_description as string
+        } else if ('details' in error) {
+          errorMessage = error.details as string
+        }
+      }
+      
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      })
     }
   }
 
@@ -311,10 +419,21 @@ export default function ItemMaster() {
       // Clear cache to ensure fresh data
       clearCache()
       
-      alert("Item deleted successfully!")
+      // Close the form if we're in edit mode
+      setIsFormOpen(false)
+      setEditingItem(null)
+      
+      toast({
+        title: "Success",
+        description: "Item deleted successfully!"
+      })
     } catch (error) {
       console.error("Error deleting item:", error)
-      alert("Failed to delete item. Please try again.")
+      toast({
+        title: "Error",
+        description: "Failed to delete item. Please try again.",
+        variant: "destructive"
+      })
     }
   }
 
@@ -398,9 +517,6 @@ export default function ItemMaster() {
       <Button variant="ghost" size="sm" onClick={() => handleEdit(item)} className="text-blue-600 hover:text-blue-800 hover:bg-blue-50">
         <Edit className="h-4 w-4" />
       </Button>
-      <Button variant="ghost" size="sm" onClick={() => handleDelete(item)} className="text-red-600 hover:text-red-800 hover:bg-red-50">
-        <Trash2 className="h-4 w-4" />
-      </Button>
     </div>
   )
 
@@ -433,7 +549,7 @@ export default function ItemMaster() {
 
   return (
     <AuthenticatedLayout>
-      <div className="space-y-6">
+      <div className="space-y-6" style={{ transform: 'scale(0.8)', transformOrigin: 'top left', width: '125%' }}>
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
@@ -625,14 +741,28 @@ export default function ItemMaster() {
                 />
               </div>
 
-              <div className="md:col-span-2 lg:col-span-3 flex justify-end space-x-3">
-                <Button type="button" variant="outline" onClick={resetForm}>
-                  Cancel
-                </Button>
-                <Button type="submit">
-                  <Save className="h-4 w-4 mr-2" />
-                  {editingItem ? "Update" : "Save"} Item
-                </Button>
+              <div className="md:col-span-2 lg:col-span-3 flex justify-between items-center">
+                {editingItem && (
+                  <Button 
+                    type="button" 
+                    variant="destructive"
+                    onClick={() => handleDelete(editingItem)}
+                    className="mr-auto"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Item
+                  </Button>
+                )}
+                
+                <div className="flex space-x-3 ml-auto">
+                  <Button type="button" variant="outline" onClick={resetForm}>
+                    Cancel
+                  </Button>
+                  <Button type="submit">
+                    <Save className="h-4 w-4 mr-2" />
+                    {editingItem ? "Update" : "Save"} Item
+                  </Button>
+                </div>
               </div>
             </form>
           </div>

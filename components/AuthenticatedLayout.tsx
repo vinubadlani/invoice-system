@@ -49,14 +49,15 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
     return <LoginForm />
   }
 
-  if (!selectedBusiness) {
-    return <BusinessSelector onBusinessSelect={handleBusinessSelect} />
-  }
+  // Business selector popup removed - business is pre-selected
+  // if (!selectedBusiness) {
+  //   return <BusinessSelector onBusinessSelect={handleBusinessSelect} />
+  // }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <SidebarNavigation 
-        businessName={selectedBusiness.name} 
+        businessName={selectedBusiness?.name || "Business Management"} 
         onBusinessChange={handleBusinessChange}
       />
       
