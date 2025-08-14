@@ -705,7 +705,7 @@ export default function BankAccountsPage() {
                         <p className="text-slate-600">Account: {account.account_number}</p>
                         <div className="flex items-center gap-4 text-sm text-slate-500">
                           <span>IFSC: {account.ifsc_code}</span>
-                          {account.branch && <span>Branch: {account.branch}</span>}
+                          {account.branch_name && <span>Branch: {account.branch_name}</span>}
                           <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                             {account.account_type}
                           </Badge>
@@ -742,7 +742,6 @@ export default function BankAccountsPage() {
                       <th className="text-left p-4 font-semibold text-slate-700">Type</th>
                       <th className="text-left p-4 font-semibold text-slate-700">Amount</th>
                       <th className="text-left p-4 font-semibold text-slate-700">Description</th>
-                      <th className="text-left p-4 font-semibold text-slate-700">Balance</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -752,7 +751,7 @@ export default function BankAccountsPage() {
                           {new Date(transaction.date).toLocaleDateString('en-IN')}
                         </td>
                         <td className="p-4 text-slate-800">
-                          {accounts.find(acc => acc.id === (transaction.account_id || transaction.bank_account_id))?.bank_name}
+                          {accounts.find(acc => acc.id === transaction.bank_account_id)?.bank_name}
                         </td>
                         <td className="p-4">
                           <Badge 
@@ -769,11 +768,6 @@ export default function BankAccountsPage() {
                         </td>
                         <td className="p-4 text-slate-600 max-w-xs truncate">
                           {transaction.description}
-                        </td>
-                        <td className="p-4">
-                          <span className={`font-semibold ${transaction.balance_after >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                            ₹{Math.abs(transaction.balance_after).toLocaleString()}
-                          </span>
                         </td>
                       </tr>
                     ))}
