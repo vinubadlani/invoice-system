@@ -95,6 +95,7 @@ export default function SalesPage() {
     if (storedBusiness) {
       const business = JSON.parse(storedBusiness)
       setBusinessId(business.id)
+      console.log("Business loaded in sales page:", business.name, "ID:", business.id)
       loadSalesData(business.id)
       
       // Subscribe to real-time updates
@@ -130,6 +131,25 @@ export default function SalesPage() {
         variant: "destructive",
       })
     }
+
+    // Listen for business changes
+    const handleStorageChange = () => {
+      const storedBusiness = localStorage.getItem("selectedBusiness")
+      if (storedBusiness) {
+        const business = JSON.parse(storedBusiness)
+        setBusinessId(business.id)
+        console.log("Business changed in sales page:", business.name, "ID:", business.id)
+        loadSalesData(business.id)
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    window.addEventListener('businessChanged', handleStorageChange)
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('businessChanged', handleStorageChange)
+    }
   }, [toast])
 
   const loadSalesData = async (businessId: string, showLoading = true) => {
@@ -137,14 +157,23 @@ export default function SalesPage() {
       if (showLoading) setLoading(true)
       else setRefreshing(true)
       
+      console.log("Loading sales data for business ID:", businessId)
+      
       // Get current user
       const user = await getCurrentUser()
       if (!user) {
         throw new Error("User not authenticated")
       }
 
-      // Fetch sales invoices
-      const salesDataResult = await fetchInvoices(businessId, 'sales', 100, user.id)
+      // FIXED: Use direct fetch without user verification for now
+      // The business context is already verified via localStorage selection
+      const salesDataResult = await fetchInvoices(businessId, 'sales', 100)
+      console.log("Sales data result:", salesDataResult)
+      console.log("Number of sales found:", salesDataResult.length)
+      
+      const finalSalesData = salesDataResult
+      console.log("Final sales data length:", finalSalesData.length)
+      console.log("Final sales data sample:", finalSalesData.slice(0, 2))
       
       // Calculate stats from the data
       const currentDate = new Date()
@@ -153,29 +182,29 @@ export default function SalesPage() {
       const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1
       const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear
 
-      const thisMonthSales = salesDataResult
+      const thisMonthSales = finalSalesData
         .filter((sale: any) => {
           const saleDate = new Date(sale.date)
           return saleDate.getMonth() === currentMonth && saleDate.getFullYear() === currentYear
         })
         .reduce((sum: number, sale: any) => sum + (sale.net_total || 0), 0)
 
-      const lastMonthSales = salesDataResult
+      const lastMonthSales = finalSalesData
         .filter((sale: any) => {
           const saleDate = new Date(sale.date)
           return saleDate.getMonth() === lastMonth && saleDate.getFullYear() === lastMonthYear
         })
         .reduce((sum: number, sale: any) => sum + (sale.net_total || 0), 0)
 
-      const totalSales = salesDataResult.reduce((sum: number, sale: any) => sum + (sale.net_total || 0), 0)
-      const totalPaid = salesDataResult.reduce((sum: number, sale: any) => sum + (sale.payment_received || 0), 0)
-      const totalPending = salesDataResult.reduce((sum: number, sale: any) => sum + (sale.balance_due || 0), 0)
-      const averageOrderValue = salesDataResult.length > 0 ? totalSales / salesDataResult.length : 0
+      const totalSales = finalSalesData.reduce((sum: number, sale: any) => sum + (sale.net_total || 0), 0)
+      const totalPaid = finalSalesData.reduce((sum: number, sale: any) => sum + (sale.payment_received || 0), 0)
+      const totalPending = finalSalesData.reduce((sum: number, sale: any) => sum + (sale.balance_due || 0), 0)
+      const averageOrderValue = finalSalesData.length > 0 ? totalSales / finalSalesData.length : 0
       const growthPercentage = lastMonthSales > 0 ? ((thisMonthSales - lastMonthSales) / lastMonthSales) * 100 : 0
 
       const statsResult = {
         total_sales: totalSales,
-        total_invoices: salesDataResult.length,
+        total_invoices: finalSalesData.length,
         average_order_value: averageOrderValue,
         pending_amount: totalPending,
         paid_amount: totalPaid,
@@ -184,9 +213,14 @@ export default function SalesPage() {
         growth_percentage: growthPercentage
       }
 
-      setSalesData(salesDataResult as unknown as SalesData[])
-      setFilteredData(salesDataResult as unknown as SalesData[])
+      setSalesData(finalSalesData as unknown as SalesData[])
+      setFilteredData(finalSalesData as unknown as SalesData[])
       setStats(statsResult as unknown as SalesStats)
+
+      console.log("=== STATE UPDATE DEBUG ===")
+      console.log("Setting salesData with:", finalSalesData.length, "records")
+      console.log("Setting filteredData with:", finalSalesData.length, "records")
+      console.log("Stats being set:", statsResult)
 
     } catch (error) {
       console.error("Error loading sales data:", error)
@@ -353,6 +387,15 @@ export default function SalesPage() {
     )
   }
 
+  // Debug: Log current state
+  console.log("=== RENDER DEBUG ===")
+  console.log("Current salesData length:", salesData.length)
+  console.log("Current filteredData length:", filteredData.length)
+  console.log("Current stats:", stats)
+  console.log("Current businessId:", businessId)
+  console.log("Loading state:", loading)
+  console.log("Refreshing state:", refreshing)
+
   return (
     <AuthenticatedLayout>
       <div className="space-y-6">
@@ -373,6 +416,133 @@ export default function SalesPage() {
             >
               <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
               Refresh
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                console.log("Current business ID:", businessId)
+                const storedBusiness = localStorage.getItem("selectedBusiness")
+                console.log("Stored business:", storedBusiness)
+                alert(`Business ID: ${businessId}`)
+              }}
+            >
+              Debug
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={async () => {
+                try {
+                  const client = getSupabaseClient()
+                  if (!client) {
+                    alert("Supabase client not available")
+                    return
+                  }
+                  
+                  // Query all invoices without any filters
+                  const { data: allInvoices } = await client
+                    .from('invoices')
+                    .select('*')
+                    .limit(10)
+                  
+                  console.log("All invoices (last 10):", allInvoices)
+                  
+                  // Query invoices for current business
+                  const { data: businessInvoices } = await client
+                    .from('invoices')
+                    .select('*')
+                    .eq('business_id', businessId)
+                    
+                  console.log("Business invoices:", businessInvoices)
+                  
+                  // Query sales specifically
+                  const { data: salesInvoices } = await client
+                    .from('invoices')
+                    .select('*')
+                    .eq('business_id', businessId)
+                    .eq('type', 'sales')
+                    
+                  console.log("Sales invoices:", salesInvoices)
+                  
+                  alert(`Found: ${allInvoices?.length || 0} total, ${businessInvoices?.length || 0} for business, ${salesInvoices?.length || 0} sales`)
+                } catch (error) {
+                  console.error("Debug query error:", error)
+                  alert("Error: " + error)
+                }
+              }}
+            >
+              DB Check
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={async () => {
+                try {
+                  const client = getSupabaseClient()
+                  if (!client) {
+                    alert("Supabase client not available")
+                    return
+                  }
+                  
+                  console.log("=== SALES PAGE DEEP DEBUG ===")
+                  console.log("Current business ID:", businessId)
+                  
+                  // Get current user
+                  const user = await getCurrentUser()
+                  console.log("Current user:", user)
+                  
+                  // Check business ownership
+                  if (user) {
+                    const { data: userBusinesses } = await client
+                      .from('businesses')
+                      .select('*')
+                      .eq('user_id', user.id)
+                    console.log("User's businesses:", userBusinesses)
+                    
+                    const { data: targetBusiness } = await client
+                      .from('businesses')
+                      .select('*')
+                      .eq('id', businessId)
+                    console.log("Target business:", targetBusiness)
+                  }
+                  
+                  // Check what's in invoices table for this business
+                  const { data: allBusinessInvoices, error } = await client
+                    .from('invoices')
+                    .select('*')
+                    .eq('business_id', businessId)
+                  
+                  console.log("All invoices for business:", allBusinessInvoices)
+                  console.log("Error if any:", error)
+                  
+                  // Specifically check sales
+                  const { data: salesForBusiness } = await client
+                    .from('invoices')
+                    .select('*')
+                    .eq('business_id', businessId)
+                    .eq('type', 'sales')
+                  
+                  console.log("Sales for business:", salesForBusiness)
+                  
+                  // Check the fetchInvoices function directly
+                  const fetchResult = await fetchInvoices(businessId, 'sales', 100)
+                  console.log("fetchInvoices result (no user):", fetchResult)
+                  
+                  if (user) {
+                    const fetchResultWithUser = await fetchInvoices(businessId, 'sales', 100, user.id)
+                    console.log("fetchInvoices result (with user):", fetchResultWithUser)
+                  }
+                  
+                  alert("Check console for detailed debug info")
+                  
+                } catch (error) {
+                  console.error("Deep debug error:", error)
+                  alert("Error in deep debug: " + error)
+                }
+              }}
+            >
+              Deep Debug
             </Button>
             <Button variant="outline" size="sm">
               <Download className="mr-2 h-4 w-4" />

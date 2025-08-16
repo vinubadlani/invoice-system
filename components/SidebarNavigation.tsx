@@ -321,6 +321,18 @@ export default function SidebarNavigation({ businessName, onBusinessChange }: Si
                 </div>
                 <DropdownMenuSeparator className="dark:bg-gray-700" />
                 <DropdownMenuItem 
+                  onClick={() => {
+                    // Clear selected business to trigger business selector
+                    localStorage.removeItem('selectedBusinessId');
+                    window.location.reload();
+                  }}
+                  className="dark:text-gray-300 dark:hover:bg-gray-700 dark:focus:bg-gray-700"
+                >
+                  <SwitchCamera className="h-4 w-4 mr-2" />
+                  Switch Business
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="dark:bg-gray-700" />
+                <DropdownMenuItem 
                   onClick={handleSignOut} 
                   className="dark:text-gray-300 dark:hover:bg-gray-700 dark:focus:bg-gray-700"
                 >

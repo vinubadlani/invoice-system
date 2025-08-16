@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { supabase, getSupabaseClient } from "@/lib/supabase"
 import { useOptimizedData } from "@/lib/cache-store"
-import { Plus, Edit, Trash2, Save, X, Loader2, Search, Calculator, Receipt, FileText, Building2 } from "lucide-react"
+import { Plus, Edit, Trash2, Save, X, Loader2, Search, Calculator, Receipt, FileText, Building2, Upload, Download, CheckCircle, XCircle, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,10 +14,14 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Progress } from "@/components/ui/progress"
 import AuthenticatedLayout from "@/components/AuthenticatedLayout"
 import DataTable from "@/components/DataTable"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import * as Papa from "papaparse"
 
 interface Business {
   id: string
@@ -94,6 +98,12 @@ export default function SalesEntry() {
   const [itemSearchOpen, setItemSearchOpen] = useState(false)
   const [itemSearchValue, setItemSearchValue] = useState("")
   const { toast } = useToast()
+
+  // Bulk upload states
+  const [showBulkUpload, setShowBulkUpload] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string; details?: any } | null>(null)
 
   // Use optimized data fetching
   const { fetchParties, fetchItems, fetchBusiness } = useOptimizedData()
@@ -410,6 +420,228 @@ export default function SalesEntry() {
 
   const selectedParty = parties.find(p => p.id === formData.party_id)
 
+  // Bulk upload functions
+  const downloadSalesTemplate = () => {
+    const csvContent = "invoice_number,invoice_date,party_name,state,address,item_name,quantity,rate,amount,gst_amount,total_amount,payment_received,payment_method,notes\n"
+      + "INV001,2024-01-15,ABC Company,Maharashtra,123 Main St Mumbai,Sample Product,10,100,1000,180,1180,500,Cash,Sample sales entry\n"
+    
+    const blob = new Blob([csvContent], { type: "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "sales_bulk_upload_template.csv"
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const handleBulkFileUpload = async (file: File) => {
+    if (!businessId) {
+      toast({
+        title: "Error",
+        description: "Please select a business before uploading files.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setUploading(true)
+    setUploadProgress(0)
+    setUploadResult(null)
+
+    try {
+      const text = await file.text()
+      
+      // Parse CSV using Papa Parse
+      const parseResult = Papa.parse(text, {
+        header: true,
+        skipEmptyLines: true,
+        transformHeader: (header: string) => header.trim().toLowerCase().replace(/['"]/g, ''),
+        transform: (value: string) => value.trim().replace(/['"]/g, '')
+      })
+      
+      if (parseResult.errors.length > 0) {
+        setUploadResult({
+          success: false,
+          message: `CSV parsing error: ${parseResult.errors[0].message}`
+        })
+        return
+      }
+      
+      const csvData = parseResult.data as any[]
+      
+      if (csvData.length === 0) {
+        setUploadResult({
+          success: false,
+          message: "CSV file is empty or has no data rows."
+        })
+        return
+      }
+
+      const client = getSupabaseClient()
+      if (!client) throw new Error("Service unavailable")
+
+      let imported = 0
+      const errorMessages: string[] = []
+      const totalRows = csvData.length
+
+      for (let i = 0; i < csvData.length; i++) {
+        const row = csvData[i]
+        setUploadProgress((i / totalRows) * 90) // Progress up to 90%
+
+        try {
+          // Validate required fields
+          if (!row.invoice_number && !row.invoice_no) {
+            errorMessages.push(`Row ${i + 1}: Invoice number is required`)
+            continue
+          }
+          if (!row.party_name) {
+            errorMessages.push(`Row ${i + 1}: Party name is required`)
+            continue
+          }
+
+          // Find existing party
+          const selectedParty = parties.find(p => 
+            p.name.toLowerCase() === row.party_name.toLowerCase()
+          )
+          
+          if (!selectedParty) {
+            errorMessages.push(`Row ${i + 1}: Party "${row.party_name}" not found. Please create this party first.`)
+            continue
+          }
+
+          // Transform CSV data to match sales-entry format
+          const invoiceItems = [{
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            item_id: "", // Will be filled if item exists
+            item_name: row.item_name || 'Unknown Item',
+            item_code: "",
+            hsn: "",
+            qty: parseFloat(row.quantity || '1'),
+            rate: parseFloat(row.rate || '0'),
+            unit: "Pcs",
+            gst_percent: row.gst_amount && row.amount ? 
+              Math.round(((parseFloat(row.gst_amount) / parseFloat(row.amount)) * 100)) : 18,
+            tax_amount: parseFloat(row.gst_amount || '0'),
+            total: parseFloat(row.total_amount || row.amount || '0')
+          }]
+
+          // Check if item exists and update item_id
+          const existingItem = items.find(item => 
+            item.name.toLowerCase() === (row.item_name || '').toLowerCase()
+          )
+          if (existingItem) {
+            invoiceItems[0].item_id = existingItem.id
+            invoiceItems[0].item_code = existingItem.code || ""
+            invoiceItems[0].hsn = existingItem.hsn_code || ""
+            invoiceItems[0].gst_percent = existingItem.gst_percent || 18
+          }
+
+          // Calculate totals
+          const subtotal = invoiceItems.reduce((sum, item) => sum + (item.qty * item.rate), 0)
+          const totalTax = invoiceItems.reduce((sum, item) => sum + item.tax_amount, 0)
+          const netTotal = parseFloat(row.total_amount || row.net_total || '0')
+          const paymentReceived = parseFloat(row.payment_received || '0')
+          const balanceDue = netTotal - paymentReceived
+
+          const invoiceData = {
+            business_id: businessId,
+            invoice_no: row.invoice_number || row.invoice_no || `INV-${Date.now()}-${i}`,
+            date: row.invoice_date || row.date || new Date().toISOString().split('T')[0],
+            party_id: selectedParty.id,
+            party_name: selectedParty.name,
+            gstin: selectedParty.gstin || row.gstin || "",
+            state: selectedParty.state || row.state || "",
+            address: selectedParty.address || row.address || "",
+            items: invoiceItems,
+            total_tax: totalTax,
+            round_off: 0,
+            net_total: netTotal,
+            payment_received: paymentReceived,
+            balance_due: balanceDue,
+            status: paymentReceived >= netTotal ? 'paid' : paymentReceived > 0 ? 'partial' : 'draft',
+            payment_method: row.payment_method || 'Cash',
+            type: "sales" as const,
+          }
+
+          const { data: insertedData, error: insertError } = await client
+            .from('invoices')
+            .insert([invoiceData])
+            .select()
+
+          if (insertError) {
+            console.error("Insert error:", insertError)
+            errorMessages.push(`Row ${i + 1}: ${insertError.message}`)
+          } else {
+            // Auto-record payment if payment_received > 0
+            if (paymentReceived > 0 && insertedData[0]) {
+              const paymentData = {
+                business_id: businessId,
+                party_name: selectedParty.name,
+                invoice_no: invoiceData.invoice_no,
+                type: "Received",
+                amount: paymentReceived,
+                mode: row.payment_method || "Cash",
+                date: invoiceData.date,
+                remarks: `Auto-recorded from bulk upload for invoice ${invoiceData.invoice_no}`,
+              }
+              
+              await client.from("payments").insert([paymentData])
+            }
+            
+            imported++
+          }
+        } catch (error: any) {
+          console.error("Error importing row:", i + 1, error)
+          errorMessages.push(`Row ${i + 1}: ${error.message}`)
+        }
+      }
+
+      setUploadProgress(100)
+      
+      setUploadResult({
+        success: imported > 0,
+        message: `Successfully imported ${imported} of ${totalRows} records!`,
+        details: { imported, errors: errorMessages.length, errorMessages: errorMessages.slice(0, 5) }
+      })
+
+      if (imported > 0) {
+        // Refresh the invoices list
+        fetchData(businessId)
+        toast({
+          title: "Bulk Upload Successful",
+          description: `Successfully imported ${imported} invoices.`
+        })
+      }
+
+    } catch (error: any) {
+      console.error("Bulk upload error:", error)
+      setUploadResult({
+        success: false,
+        message: `Upload failed: ${error.message || 'Please try again.'}`
+      })
+    } finally {
+      setUploading(false)
+      setUploadProgress(0)
+    }
+  }
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0]
+      if (file.type === "text/csv" || file.name.endsWith('.csv')) {
+        handleBulkFileUpload(file)
+      } else {
+        toast({
+          title: "Invalid File Type",
+          description: "Please upload a CSV file.",
+          variant: "destructive"
+        })
+      }
+    }
+  }
+
   // Memoized columns for better performance
   const columns = useMemo(() => [
     { key: "invoice_no", label: "Invoice No", render: (value: string) => <span className="font-medium">{value}</span> },
@@ -461,10 +693,16 @@ export default function SalesEntry() {
             </h1>
             <p className="text-gray-600 mt-1">Create and manage sales invoices</p>
           </div>
-          <Button onClick={() => setIsFormOpen(true)} disabled={saving} size="lg">
-            <Plus className="h-5 w-5 mr-2" />
-            New Invoice
-          </Button>
+          <div className="flex gap-3">
+            <Button onClick={() => setShowBulkUpload(true)} variant="outline" size="lg">
+              <Upload className="h-5 w-5 mr-2" />
+              Bulk Upload
+            </Button>
+            <Button onClick={() => setIsFormOpen(true)} disabled={saving} size="lg">
+              <Plus className="h-5 w-5 mr-2" />
+              New Invoice
+            </Button>
+          </div>
         </div>
 
         {/* Form */}
@@ -854,6 +1092,144 @@ export default function SalesEntry() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Bulk Upload Dialog */}
+      <Dialog open={showBulkUpload} onOpenChange={setShowBulkUpload}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5" />
+              Bulk Upload Sales Invoices
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Instructions */}
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <h4 className="font-medium text-blue-900 mb-2">Instructions:</h4>
+              <ul className="text-sm text-blue-800 space-y-1">
+                <li>• Download the template CSV file below</li>
+                <li>• Fill in your sales data following the column format</li>
+                <li>• <strong>Important:</strong> All parties must exist in your Party database</li>
+                <li>• Upload the completed CSV file</li>
+              </ul>
+            </div>
+
+            {/* Template Download */}
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+              <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Download Template
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Get the CSV template with proper column headers
+              </p>
+              <Button onClick={downloadSalesTemplate} variant="outline">
+                <Download className="h-4 w-4 mr-2" />
+                Download Sales Template
+              </Button>
+            </div>
+
+            {/* File Upload */}
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+              <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Upload CSV File
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Select your completed sales CSV file
+              </p>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleFileInput}
+                className="hidden"
+                id="bulkFileInput"
+                disabled={uploading}
+              />
+              <label htmlFor="bulkFileInput">
+                <Button asChild disabled={uploading}>
+                  <span>
+                    {uploading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Select CSV File
+                      </>
+                    )}
+                  </span>
+                </Button>
+              </label>
+            </div>
+
+            {/* Upload Progress */}
+            {uploading && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Processing...</span>
+                  <span className="text-sm text-gray-500">{uploadProgress}%</span>
+                </div>
+                <Progress value={uploadProgress} className="w-full" />
+              </div>
+            )}
+
+            {/* Upload Result */}
+            {uploadResult && (
+              <Alert className={`${uploadResult.success ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                {uploadResult.success ? (
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                ) : (
+                  <XCircle className="h-4 w-4 text-red-600" />
+                )}
+                <AlertDescription className={uploadResult.success ? 'text-green-800' : 'text-red-800'}>
+                  {uploadResult.message}
+                  {uploadResult.details && uploadResult.details.errorMessages && uploadResult.details.errorMessages.length > 0 && (
+                    <div className="mt-2">
+                      <p className="font-semibold">Sample errors:</p>
+                      <ul className="list-disc list-inside mt-1 text-xs">
+                        {uploadResult.details.errorMessages.map((error: string, index: number) => (
+                          <li key={index}>{error}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Requirements */}
+            <div className="bg-orange-50 p-4 rounded-lg">
+              <h4 className="font-medium text-orange-900 mb-2 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                Requirements:
+              </h4>
+              <ul className="text-sm text-orange-800 space-y-1">
+                <li>• <strong>Required columns:</strong> invoice_number, party_name, total_amount</li>
+                <li>• <strong>Date format:</strong> YYYY-MM-DD (e.g., 2025-01-15)</li>
+                <li>• <strong>All parties must exist:</strong> Create parties in Party module first</li>
+                <li>• <strong>Items:</strong> Will use existing items or create generic ones</li>
+              </ul>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowBulkUpload(false)
+                setUploadResult(null)
+              }}
+              disabled={uploading}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AuthenticatedLayout>
   )
 }

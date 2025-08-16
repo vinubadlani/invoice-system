@@ -60,34 +60,37 @@ export default function BusinessSelector({ onBusinessChange, onBusinessSelect, c
         return
       }
       
+      // Check authentication first
+      const { data: { user }, error: authError } = await client.auth.getUser()
+      
+      if (authError || !user) {
+        console.error('Authentication error:', authError)
+        // Redirect to login page
+        window.location.href = '/auth/login'
+        return
+      }
+
       // Add timeout to prevent hanging
-      const fetchPromise = client.auth.getUser().then(async ({ data: { user } }) => {
-        if (!user) {
-          throw new Error("User not authenticated")
-        }
-
-        const { data, error } = await client
-          .from("businesses")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-
-        if (error) throw error
-        return data
-      })
+      const fetchPromise = client
+        .from("businesses")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
 
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Fetch timeout')), 8000)
       )
 
-      const data = await Promise.race([fetchPromise, timeoutPromise]) as Business[]
+      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any
+      
+      if (error) throw error
       
       setBusinesses(data || [])
       
       // Auto-select business logic - optimized
       const storedBusinessId = localStorage.getItem("selectedBusinessId")
       if (storedBusinessId && data && data.length > 0) {
-        const business = data.find(b => b.id === storedBusinessId)
+        const business = data.find((b: Business) => b.id === storedBusinessId)
         if (business) {
           await selectBusiness(business, false) // Don't preload on initial load
           return
@@ -112,8 +115,20 @@ export default function BusinessSelector({ onBusinessChange, onBusinessSelect, c
       let errorMessage = "Failed to load businesses"
       if (error.message.includes('timeout')) {
         errorMessage = "Loading businesses is taking longer than expected. Please check your connection."
-      } else if (error.message.includes('not authenticated')) {
-        errorMessage = "Please log in again to access your businesses"
+      } else if (error.message.includes('not authenticated') || error.message.includes('Auth session missing')) {
+        errorMessage = "Your session has expired. Redirecting to login..."
+        toast({
+          title: "Session Expired",
+          description: "Please log in again to continue",
+          variant: "destructive"
+        })
+        // Redirect to login after a short delay
+        setTimeout(() => {
+          window.location.href = '/auth/login'
+        }, 2000)
+        return
+      } else if (error.message.includes('Failed to fetch')) {
+        errorMessage = "Unable to connect to the server. Please check your internet connection."
       }
       
       toast({

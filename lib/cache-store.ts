@@ -97,16 +97,28 @@ class OptimizedCache {
     this.setLoading(cacheKey, true)
     
     try {
-      // Security check - verify business ownership
+      // Security check - verify business ownership with improved error handling
       const user = await getCurrentUser()
       if (!user) {
-        console.warn("User not authenticated")
+        console.warn("User not authenticated in fetchParties")
         return []
       }
 
-      const isOwner = await verifyBusinessOwnership(businessId, user.id)
+      // Add try-catch specifically for verifyBusinessOwnership
+      let isOwner = false
+      try {
+        isOwner = await verifyBusinessOwnership(businessId, user.id)
+      } catch (ownershipError: any) {
+        console.error("Error during business ownership verification in fetchParties:", {
+          message: ownershipError?.message || 'Unknown ownership error',
+          businessId,
+          userId: user.id
+        })
+        return []
+      }
+
       if (!isOwner) {
-        console.warn("User does not own this business")
+        console.warn("User does not own this business in fetchParties:", { businessId, userId: user.id })
         return []
       }
 
@@ -161,16 +173,28 @@ class OptimizedCache {
     this.setLoading(cacheKey, true)
     
     try {
-      // Security check - verify business ownership
+      // Security check - verify business ownership with improved error handling
       const user = await getCurrentUser()
       if (!user) {
-        console.warn("User not authenticated")
+        console.warn("User not authenticated in fetchItems")
         return []
       }
 
-      const isOwner = await verifyBusinessOwnership(businessId, user.id)
+      // Add try-catch specifically for verifyBusinessOwnership
+      let isOwner = false
+      try {
+        isOwner = await verifyBusinessOwnership(businessId, user.id)
+      } catch (ownershipError: any) {
+        console.error("Error during business ownership verification in fetchItems:", {
+          message: ownershipError?.message || 'Unknown ownership error',
+          businessId,
+          userId: user.id
+        })
+        return []
+      }
+
       if (!isOwner) {
-        console.warn("User does not own this business")
+        console.warn("User does not own this business in fetchItems:", { businessId, userId: user.id })
         return []
       }
 
@@ -237,16 +261,28 @@ class OptimizedCache {
     if (cached) return cached
 
     try {
-      // Security check - verify business ownership
+      // Security check - verify business ownership with improved error handling
       const user = await getCurrentUser()
       if (!user) {
-        console.warn("User not authenticated")
+        console.warn("User not authenticated in fetchRecentInvoices")
         return []
       }
 
-      const isOwner = await verifyBusinessOwnership(businessId, user.id)
+      // Add try-catch specifically for verifyBusinessOwnership
+      let isOwner = false
+      try {
+        isOwner = await verifyBusinessOwnership(businessId, user.id)
+      } catch (ownershipError: any) {
+        console.error("Error during business ownership verification:", {
+          message: ownershipError?.message || 'Unknown ownership error',
+          businessId,
+          userId: user.id
+        })
+        return []
+      }
+
       if (!isOwner) {
-        console.warn("User does not own this business")
+        console.warn("User does not own this business:", { businessId, userId: user.id })
         return []
       }
 
@@ -269,8 +305,14 @@ class OptimizedCache {
       const result = data || []
       this.set(cacheKey, result, this.FAST_EXPIRY) // Shorter cache for dynamic data
       return result
-    } catch (error) {
-      console.error("Error fetching recent invoices:", error)
+    } catch (error: any) {
+      console.error("Error fetching recent invoices:", {
+        message: error?.message || 'Unknown error',
+        businessId,
+        type,
+        limit,
+        stack: error?.stack
+      })
       return []
     }
   }

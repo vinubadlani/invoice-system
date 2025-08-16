@@ -211,22 +211,99 @@ export async function verifyBusinessOwnership(businessId: string, userId: string
       return false
     }
 
+    console.log('Verifying business ownership:', { businessId, userId })
+
     const client = ensureSupabaseClient()
+    
+    // First check if we have a valid authenticated session
+    const { data: { user }, error: authError } = await client.auth.getUser()
+    if (authError || !user || user.id !== userId) {
+      console.error('Authentication issue in verifyBusinessOwnership:', {
+        authError: authError?.message || 'No auth error',
+        userExists: !!user,
+        userIdMatch: user?.id === userId
+      })
+      return false
+    }
+
     const { data, error } = await client
       .from('businesses')
-      .select('id')
+      .select('id, user_id, name')
       .eq('id', businessId)
       .eq('user_id', userId)
       .single()
 
     if (error) {
-      console.error('Error verifying business ownership:', error)
+      // Better error logging with more details
+      const errorInfo = {
+        message: error.message || 'Unknown error',
+        code: error.code || 'No code',
+        details: error.details || 'No details',
+        hint: error.hint || 'No hint',
+        businessId,
+        userId
+      }
+      
+      console.error('Error verifying business ownership:', errorInfo)
+      
+      // Handle specific error cases
+      if (error.code === 'PGRST116' || error.message?.includes('No rows found')) {
+        // This means the business doesn't exist or doesn't belong to the user
+        console.log('Business not found or access denied:', { businessId, userId })
+        return false
+      }
+      
+      // For debugging - check what businesses exist for this user (only in development)
+      if (process.env.NODE_ENV === 'development') {
+        try {
+          const { data: userBusinesses } = await client
+            .from('businesses')
+            .select('id, user_id, name')
+            .eq('user_id', userId)
+          
+          console.log('User businesses:', userBusinesses)
+          
+          // And what business exists with this ID
+          const { data: businessData } = await client
+            .from('businesses')
+            .select('id, user_id, name')
+            .eq('id', businessId)
+          
+          console.log('Business data:', businessData)
+        } catch (debugError) {
+          console.warn('Debug query failed:', debugError)
+        }
+      }
+      
       return false
     }
 
+    console.log('Business ownership verified:', data)
     return !!data
   } catch (error: any) {
-    console.error('Error in verifyBusinessOwnership:', error?.message || 'Unknown error')
+    const errorMessage = error?.message || 'Unknown error'
+    const errorCode = error?.code || 'No code'
+    
+    console.error('Error in verifyBusinessOwnership:', {
+      message: errorMessage,
+      code: errorCode,
+      businessId,
+      userId,
+      stack: error?.stack
+    })
+    
+    // Handle specific error types
+    if (errorMessage.includes('Auth session missing') || errorMessage.includes('not authenticated')) {
+      console.warn('Authentication session issue in verifyBusinessOwnership')
+      return false
+    }
+    
+    // Handle network errors
+    if (errorMessage.includes('Failed to fetch') || errorMessage.includes('network')) {
+      console.warn('Network connectivity issue in verifyBusinessOwnership')
+      return false
+    }
+    
     return false
   }
 }
@@ -331,10 +408,16 @@ export async function fetchInvoices(businessId: string, type?: "sales" | "purcha
       return []
     }
 
+    console.log('fetchInvoices called with:', { businessId, type, limit, userId })
+
     // Verify ownership if userId is provided
-    if (userId && !(await verifyBusinessOwnership(businessId, userId))) {
-      console.warn('User does not own this business')
-      return []
+    if (userId) {
+      const ownershipCheck = await verifyBusinessOwnership(businessId, userId)
+      console.log('Business ownership verification:', ownershipCheck)
+      if (!ownershipCheck) {
+        console.warn('User does not own this business:', { businessId, userId })
+        return []
+      }
     }
 
     const client = ensureSupabaseClient()
@@ -346,6 +429,8 @@ export async function fetchInvoices(businessId: string, type?: "sales" | "purcha
     if (type) {
       query = query.eq('type', type)
     }
+
+    console.log('Executing query with filters:', { business_id: businessId, type })
 
     const { data, error } = await query
       .order('date', { ascending: false })
@@ -361,6 +446,7 @@ export async function fetchInvoices(businessId: string, type?: "sales" | "purcha
       throw error
     }
     
+    console.log('Query result:', data?.length || 0, 'records found')
     return data || []
   } catch (error: any) {
     console.error('Error fetching invoices:', {

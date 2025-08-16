@@ -49,10 +49,10 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
     return <LoginForm />
   }
 
-  // Business selector popup removed - business is pre-selected
-  // if (!selectedBusiness) {
-  //   return <BusinessSelector onBusinessSelect={handleBusinessSelect} />
-  // }
+  // Show business selector if no business is selected
+  if (!selectedBusiness) {
+    return <BusinessSelector onBusinessSelect={handleBusinessSelect} />
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
