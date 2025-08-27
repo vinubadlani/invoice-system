@@ -253,29 +253,18 @@ export default function BusinessSelector({ onBusinessChange, onBusinessSelect, c
   // Show create business prompt if no businesses exist
   if (!loading && businesses.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <Card className="w-full max-w-md shadow-xl">
-          <CardHeader className="text-center">
-            <div className="bg-blue-100 dark:bg-blue-900 p-3 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-              <Building2 className="h-8 w-8 text-blue-600 dark:text-blue-400" />
-            </div>
-            <CardTitle className="text-blue-800 dark:text-blue-400">Welcome to HisabKitaab!</CardTitle>
-            <CardDescription className="dark:text-gray-300">
-              Let's create your first business to get started
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
-              You haven't created any businesses yet. Create your first business to start managing your invoices and transactions.
-            </p>
-            
-            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Your First Business
-                </Button>
-              </DialogTrigger>
+      <div className={cn("flex items-center gap-2", className)}>
+        <div className="flex items-center gap-2 text-gray-600">
+          <Building2 className="h-4 w-4" />
+          <span className="text-sm">No businesses found</span>
+        </div>
+        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+          <DialogTrigger asChild>
+            <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+              <Plus className="h-4 w-4 mr-2" />
+              Create Business
+            </Button>
+          </DialogTrigger>
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
                   <DialogTitle>Create New Business</DialogTitle>
@@ -403,9 +392,7 @@ export default function BusinessSelector({ onBusinessChange, onBusinessSelect, c
                 </form>
               </DialogContent>
             </Dialog>
-          </CardContent>
-        </Card>
-      </div>
+        </div>
     )
   }
 

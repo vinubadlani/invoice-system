@@ -278,6 +278,84 @@
     font-size: 10px !important;
   }
 
+  /* A4 Single Page Invoice Optimization */
+  .invoice-page {
+    width: 210mm !important;
+    min-height: 297mm !important;
+    max-height: 297mm !important;
+    padding: 15mm !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    page-break-after: always !important;
+    overflow: hidden !important;
+  }
+
+  .invoice-header {
+    margin-bottom: 8mm !important;
+    padding-bottom: 4mm !important;
+  }
+
+  .invoice-header h1 {
+    font-size: 16px !important;
+    margin-bottom: 2mm !important;
+  }
+
+  .invoice-header .text-sm {
+    font-size: 10px !important;
+    line-height: 1.2 !important;
+  }
+
+  /* Compact table for single page */
+  .invoice-page table {
+    font-size: 9px !important;
+    margin-bottom: 4mm !important;
+  }
+
+  .invoice-page th,
+  .invoice-page td {
+    padding: 1.5mm 1mm !important;
+    font-size: 9px !important;
+    line-height: 1.2 !important;
+  }
+
+  .invoice-page .text-xs {
+    font-size: 8px !important;
+  }
+
+  .invoice-page .text-sm {
+    font-size: 9px !important;
+  }
+
+  .invoice-page .text-base {
+    font-size: 10px !important;
+  }
+
+  .invoice-page .text-lg {
+    font-size: 12px !important;
+  }
+
+  /* Compact spacing for single page fit */
+  .invoice-page .grid {
+    gap: 3mm !important;
+  }
+
+  .invoice-page .mb-4 {
+    margin-bottom: 3mm !important;
+  }
+
+  .invoice-page .mb-6 {
+    margin-bottom: 4mm !important;
+  }
+
+  .invoice-page .p-3 {
+    padding: 2mm !important;
+  }
+
+  .invoice-page .p-4 {
+    padding: 2.5mm !important;
+  }
+
   /* Hide dark mode elements in print */
   .dark\:block {
     display: none !important;

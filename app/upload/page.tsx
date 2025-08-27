@@ -259,14 +259,15 @@ export default function UploadPage() {
       }
     }
 
-    // Import purchases
+    // Import purchases (stored in invoices table with type='purchase')
     if (data.purchases && Array.isArray(data.purchases)) {
       setUploadProgress(85)
       for (const purchase of data.purchases) {
         try {
-          await client.from("purchases").insert([{
+          await client.from("invoices").insert([{
             ...purchase,
             business_id: businessId,
+            type: 'purchase',
             id: undefined
           }])
           imported.purchases++
@@ -355,19 +356,23 @@ export default function UploadPage() {
   }
 
   const detectCsvType = (headers: string[]): string => {
-    const headerSet = new Set(headers.map(h => h.toLowerCase().trim()))
+    const headerSet = new Set(headers.map(h => h.toLowerCase().trim().replace(/_/g, '')))
     
     if (headerSet.has('name') && headerSet.has('mobile')) {
       return 'parties'
-    } else if (headerSet.has('name') && headerSet.has('sales_price')) {
+    } else if (headerSet.has('name') && headerSet.has('salesprice')) {
       return 'items'
-    } else if (headerSet.has('invoice_number') && headerSet.has('party_name') && headerSet.has('payment_received')) {
+    } else if (headerSet.has('invoicenumber') && headerSet.has('partyname') && headerSet.has('paymentreceived')) {
       return 'sales-entry'
-    } else if (headerSet.has('invoice_number') && headerSet.has('party_name')) {
+    } else if (headerSet.has('invoicenumber') && headerSet.has('partyname')) {
       return 'sales'
-    } else if (headerSet.has('bill_number') && headerSet.has('supplier_name')) {
+    } else if (headerSet.has('billnumber') && headerSet.has('suppliername')) {
       return 'purchases'
-    } else if (headerSet.has('description') && headerSet.has('amount') && headerSet.has('category')) {
+    } else if ((headerSet.has('description') || headerSet.has('expensedescription')) && 
+               (headerSet.has('amount') || headerSet.has('expenseamount')) && 
+               (headerSet.has('category') || headerSet.has('expensecategory'))) {
+      return 'expenses'
+    } else if (headerSet.has('expensedate') || headerSet.has('expense')) {
       return 'expenses'
     }
     return 'unknown'
@@ -450,17 +455,37 @@ export default function UploadPage() {
       if (!row.item_name?.trim()) errors.push('Item name is required')
       if (!row.amount || isNaN(parseFloat(row.amount))) errors.push('Valid amount is required')
 
-      // Check if supplier exists
+      // Check if supplier exists (suppliers are stored as parties with type 'Creditor')
       const supplierExists = existingParties.find(p => 
-        p.name.toLowerCase() === row.supplier_name?.toLowerCase() && p.type === 'Supplier'
+        p.name.toLowerCase() === row.supplier_name?.toLowerCase() && p.type === 'Creditor'
       )
       if (!supplierExists) {
         warnings.push(`Supplier "${row.supplier_name}" not found. Will be created as new supplier.`)
       }
+
+      // Check if item exists
+      const itemExists = existingItems.find(i => 
+        i.name.toLowerCase() === row.item_name?.toLowerCase()
+      )
+      if (!itemExists) {
+        warnings.push(`Item "${row.item_name}" not found. Will be created with provided details.`)
+      }
     } else if (type === 'expenses') {
-      if (!row.description?.trim()) errors.push('Description is required')
-      if (!row.category?.trim()) errors.push('Category is required')
-      if (!row.amount || isNaN(parseFloat(row.amount))) errors.push('Valid amount is required')
+      const description = row.description || row.expense_description || row.details || ''
+      const category = row.category || row.expense_category || row.expense_type || ''
+      const amount = row.amount || row.expense_amount || row.cost || ''
+      const date = row.date || row.expense_date || row.transaction_date || ''
+      
+      if (!description.trim()) errors.push('Description is required')
+      if (!category.trim()) errors.push('Category is required')
+      if (!amount || isNaN(parseFloat(amount))) errors.push('Valid amount is required')
+      if (!date.trim()) errors.push('Date is required')
+      
+      // Normalize the data for consistent processing
+      row.description = description
+      row.category = category
+      row.amount = amount
+      row.date = date
     }
 
     return { errors, warnings }
@@ -489,6 +514,89 @@ export default function UploadPage() {
     })
   }
 
+  const handleCreateNewParty = async (partyName: string, partyType: 'Customer' | 'Supplier'): Promise<boolean> => {
+    try {
+      const client = getSupabaseClient()
+      if (!client) return false
+
+      const partyData = {
+        business_id: businessId,
+        name: partyName,
+        mobile: '0000000000', // Default mobile
+        email: '',
+        type: partyType === 'Supplier' ? 'Creditor' : 'Debtor',
+        address: 'N/A',
+        city: 'N/A',
+        state: 'N/A',
+        pincode: '000000'
+      }
+
+      const { data, error } = await client
+        .from('parties')
+        .insert([partyData])
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error creating party:', error)
+        return false
+      }
+
+      // Add to existing parties list
+      setExistingParties(prev => [...prev, data])
+      
+      toast({
+        title: "Party Created",
+        description: `${partyType} "${partyName}" has been created successfully`,
+      })
+
+      return true
+    } catch (error) {
+      console.error('Error creating party:', error)
+      return false
+    }
+  }
+
+  const handleCreateNewItem = async (itemName: string, price: number = 0): Promise<boolean> => {
+    try {
+      const client = getSupabaseClient()
+      if (!client) return false
+
+      const itemData = {
+        business_id: businessId,
+        name: itemName,
+        code: itemName.replace(/\s+/g, '_').toUpperCase(),
+        unit: 'Pcs',
+        sales_price: price,
+        purchase_price: price
+      }
+
+      const { data, error } = await client
+        .from('items')
+        .insert([itemData])
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error creating item:', error)
+        return false
+      }
+
+      // Add to existing items list
+      setExistingItems(prev => [...prev, data])
+      
+      toast({
+        title: "Item Created",
+        description: `Item "${itemName}" has been created successfully`,
+      })
+
+      return true
+    } catch (error) {
+      console.error('Error creating item:', error)
+      return false
+    }
+  }
+
   const toggleRowEdit = (rowId: string) => {
     setReviewData(prev => {
       if (!prev) return prev
@@ -503,83 +611,6 @@ export default function UploadPage() {
         })
       }
     })
-  }
-
-  const handleCreateNewParty = async (name: string, type: string) => {
-    try {
-      const client = getSupabaseClient()
-      if (!client) return false
-
-      const { data, error } = await client
-        .from('parties')
-        .insert([{
-          name,
-          type,
-          business_id: businessId,
-          mobile: '',
-          email: '',
-          address: ''
-        }])
-        .select()
-
-      if (error) throw error
-
-      // Update existing parties list
-      setExistingParties(prev => [...prev, { id: data[0].id, name, type }])
-      
-      toast({
-        title: "Success",
-        description: `${type} "${name}" created successfully`,
-      })
-      
-      return true
-    } catch (error) {
-      console.error("Error creating party:", error)
-      toast({
-        title: "Error",
-        description: "Failed to create party",
-        variant: "destructive"
-      })
-      return false
-    }
-  }
-
-  const handleCreateNewItem = async (name: string, salesPrice: number) => {
-    try {
-      const client = getSupabaseClient()
-      if (!client) return false
-
-      const { data, error } = await client
-        .from('items')
-        .insert([{
-          name,
-          sales_price: salesPrice,
-          business_id: businessId,
-          unit: 'Pcs',
-          gst_percent: 18
-        }])
-        .select()
-
-      if (error) throw error
-
-      // Update existing items list
-      setExistingItems(prev => [...prev, { id: data[0].id, name, sales_price: salesPrice }])
-      
-      toast({
-        title: "Success",
-        description: `Item "${name}" created successfully`,
-      })
-      
-      return true
-    } catch (error) {
-      console.error("Error creating item:", error)
-      toast({
-        title: "Error",
-        description: "Failed to create item",
-        variant: "destructive"
-      })
-      return false
-    }
   }
 
   const handleSubmitReview = async () => {
@@ -622,6 +653,28 @@ export default function UploadPage() {
               opening_stock: parseFloat(row.edited.opening_stock) || 0
             }])
           } else if (reviewData.type === 'sales-entry') {
+            // Create missing customer if needed
+            const customerName = row.edited.party_name
+            if (customerName) {
+              const existingCustomer = existingParties.find(party => 
+                party.name.toLowerCase() === customerName.toLowerCase() && party.type === 'Debtor'
+              )
+              if (!existingCustomer) {
+                await handleCreateNewParty(customerName, 'Customer')
+              }
+            }
+
+            // Create missing item if needed
+            const itemName = row.edited.item_name
+            if (itemName) {
+              const existingItem = existingItems.find(item => 
+                item.name.toLowerCase() === itemName.toLowerCase()
+              )
+              if (!existingItem) {
+                await handleCreateNewItem(itemName, parseFloat(row.edited.rate) || 0)
+              }
+            }
+
             // Insert into invoices table for sales-entry
             const invoiceData = {
               invoice_no: row.edited.invoice_number,
@@ -658,23 +711,89 @@ export default function UploadPage() {
               invoice_date: row.edited.invoice_date || new Date().toISOString().split('T')[0]
             }])
           } else if (reviewData.type === 'purchases') {
-            await client.from("purchases").insert([{
-              ...row.edited,
+            // Create missing supplier if needed
+            const supplierName = row.edited.supplier_name
+            if (supplierName) {
+              const existingSupplier = existingParties.find(party => 
+                party.name.toLowerCase() === supplierName.toLowerCase() && party.type === 'Creditor'
+              )
+              if (!existingSupplier) {
+                await handleCreateNewParty(supplierName, 'Supplier')
+              }
+            }
+
+            // Create missing item if needed
+            const itemName = row.edited.item_name
+            if (itemName) {
+              const existingItem = existingItems.find(item => 
+                item.name.toLowerCase() === itemName.toLowerCase()
+              )
+              if (!existingItem) {
+                await handleCreateNewItem(itemName, parseFloat(row.edited.rate) || 0)
+              }
+            }
+
+            // Purchases are stored in the invoices table with type='purchase'
+            await client.from("invoices").insert([{
               business_id: businessId,
-              amount: parseFloat(row.edited.amount) || 0,
-              gst_amount: parseFloat(row.edited.gst_amount) || 0,
-              total_amount: parseFloat(row.edited.total_amount) || 0,
-              quantity: parseFloat(row.edited.quantity) || 0,
-              rate: parseFloat(row.edited.rate) || 0,
-              bill_date: row.edited.bill_date || new Date().toISOString().split('T')[0]
+              invoice_no: row.edited.bill_number,
+              date: row.edited.bill_date || new Date().toISOString().split('T')[0],
+              party_name: row.edited.supplier_name,
+              gstin: row.edited.gstin || '',
+              state: row.edited.state || '',
+              address: row.edited.address || '',
+              items: [{
+                name: row.edited.item_name,
+                quantity: parseFloat(row.edited.quantity) || 1,
+                rate: parseFloat(row.edited.rate) || 0,
+                amount: parseFloat(row.edited.amount) || 0,
+                gst_percent: parseFloat(row.edited.gst_percent) || 0,
+                gst_amount: parseFloat(row.edited.gst_amount) || 0
+              }],
+              total_tax: parseFloat(row.edited.gst_amount) || 0,
+              net_total: parseFloat(row.edited.total_amount) || parseFloat(row.edited.amount) || 0,
+              payment_received: parseFloat(row.edited.payment_received) || 0,
+              balance_due: (parseFloat(row.edited.total_amount) || parseFloat(row.edited.amount) || 0) - (parseFloat(row.edited.payment_received) || 0),
+              type: 'purchase'
             }])
           } else if (reviewData.type === 'expenses') {
+            // Create missing expense party if needed
+            const partyName = row.edited.party_name || row.edited.expense_party
+            if (partyName) {
+              const existingParty = existingParties.find(party => 
+                party.name.toLowerCase() === partyName.toLowerCase() && party.type === 'Expense'
+              )
+              if (!existingParty) {
+                try {
+                  const client = getSupabaseClient()
+                  if (client) {
+                    await client.from('parties').insert([{
+                      business_id: businessId,
+                      name: partyName,
+                      mobile: '0000000000',
+                      email: '',
+                      type: 'Expense',
+                      address: 'N/A',
+                      city: 'N/A',
+                      state: 'N/A',
+                      pincode: '000000'
+                    }])
+                    // Refresh parties list
+                    await loadExistingData(businessId)
+                  }
+                } catch (error) {
+                  console.error('Error creating expense party:', error)
+                }
+              }
+            }
+
             await client.from("expenses").insert([{
-              ...row.edited,
               business_id: businessId,
-              amount: parseFloat(row.edited.amount) || 0,
-              gst_amount: parseFloat(row.edited.gst_amount) || 0,
-              expense_date: row.edited.expense_date || new Date().toISOString().split('T')[0]
+              date: row.edited.date || row.edited.expense_date || new Date().toISOString().split('T')[0],
+              category: row.edited.category || row.edited.expense_category || 'Other',
+              description: row.edited.description || row.edited.expense_description || '',
+              amount: parseFloat(row.edited.amount || row.edited.expense_amount) || 0,
+              receipt_url: row.edited.receipt_url || row.edited.receipt || null
             }])
           }
           imported++
@@ -730,8 +849,10 @@ export default function UploadPage() {
       csvContent += "BILL001,2024-01-15,XYZ Supplier,Raw Material,20,50,1000,180,1180,Credit,Sample purchase entry\n"
       filename = "purchases_template.csv"
     } else if (type === 'expenses') {
-      csvContent = "expense_date,description,category,amount,gst_amount,payment_mode,vendor,notes\n"
-      csvContent += "2024-01-15,Office Rent,Rent,15000,0,Bank Transfer,Property Owner,Monthly office rent\n"
+      csvContent = "date,description,category,amount,receipt_url\n"
+      csvContent += "2024-01-15,Office Rent,Rent,15000,\n"
+      csvContent += "2024-01-16,Internet Bill,Utilities,2500,\n"
+      csvContent += "2024-01-17,Travel Reimbursement,Travel,1200,\n"
       filename = "expenses_template.csv"
     } else if (type === 'sales-entry') {
       csvContent = "invoice_number,invoice_date,party_name,item_name,quantity,rate,amount,gst_amount,total_amount,payment_mode,payment_received,notes\n"
@@ -972,7 +1093,7 @@ export default function UploadPage() {
                     Download a CSV template for importing expense records
                   </p>
                   <div className="text-xs text-gray-500 mb-4">
-                    <p>Columns: expense_date, description, category, amount, gst_amount, payment_mode, vendor, notes</p>
+                    <p>Columns: date, description, category, amount, receipt_url</p>
                   </div>
                   <Button onClick={() => downloadTemplate('expenses')}>
                     <Download className="h-4 w-4 mr-2" />
@@ -1218,7 +1339,7 @@ export default function UploadPage() {
                                             <SelectValue placeholder="Select supplier" />
                                           </SelectTrigger>
                                           <SelectContent>
-                                            {existingParties.filter(p => p.type === 'Supplier').map(party => (
+                                            {existingParties.filter(p => p.type === 'Creditor').map(party => (
                                               <SelectItem key={party.id} value={party.name}>
                                                 {party.name}
                                               </SelectItem>
@@ -1280,6 +1401,32 @@ export default function UploadPage() {
                                           placeholder="Or type new item"
                                           className="w-full text-xs"
                                         />
+                                        {row.warnings.some(w => w.includes('Item') && w.includes('not found')) && (
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="text-xs h-7"
+                                            onClick={async () => {
+                                              const itemName = row.edited[header]
+                                              const price = parseFloat(row.edited.rate) || 0
+                                              if (itemName && await handleCreateNewItem(itemName, price)) {
+                                                const validation = validateRow(row.edited, row.type)
+                                                setReviewData(prev => {
+                                                  if (!prev) return prev
+                                                  return {
+                                                    ...prev,
+                                                    rows: prev.rows.map(r => 
+                                                      r.id === row.id ? { ...r, warnings: validation.warnings, errors: validation.errors } : r
+                                                    )
+                                                  }
+                                                })
+                                              }
+                                            }}
+                                          >
+                                            <Plus className="h-3 w-3 mr-1" />
+                                            Create Item
+                                          </Button>
+                                        )}
                                       </div>
                                     ) : header.includes('date') ? (
                                       <Input

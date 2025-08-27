@@ -11,9 +11,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Plus, Edit, Trash2, Download, Search, Filter, Receipt, TrendingUp, DollarSign, Calendar } from "lucide-react"
+import { Plus, Edit, Trash2, Download, Search, Filter, Receipt, TrendingUp, DollarSign, Calendar, Upload, FileText } from "lucide-react"
 import AuthenticatedLayout from "@/components/AuthenticatedLayout"
 import { useToast } from "@/hooks/use-toast"
+import * as Papa from "papaparse"
 
 interface Expense {
   id: string
@@ -49,6 +50,9 @@ export default function Expenses() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [dateFrom, setDateFrom] = useState<string>("")
   const [dateTo, setDateTo] = useState<string>("")
+  const [showBulkUpload, setShowBulkUpload] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadResult, setUploadResult] = useState<{success: boolean, message: string} | null>(null)
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -250,6 +254,129 @@ export default function Expenses() {
     window.URL.revokeObjectURL(url)
   }
 
+  const downloadTemplate = () => {
+    const csvContent = "date,description,category,amount,receipt_url\n" +
+                     "2024-01-15,Office Rent,Rent,15000,\n" +
+                     "2024-01-16,Internet Bill,Utilities,2500,\n" +
+                     "2024-01-17,Travel Reimbursement,Travel,1200,\n"
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = "expenses_template.csv"
+    a.click()
+    window.URL.revokeObjectURL(url)
+  }
+
+  const handleBulkUpload = async (file: File) => {
+    if (!businessId) {
+      toast({
+        title: "Error",
+        description: "Please select a business before uploading expenses.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setUploading(true)
+    setUploadResult(null)
+
+    try {
+      const text = await file.text()
+      
+      Papa.parse(text, {
+        header: true,
+        skipEmptyLines: true,
+        complete: async (results) => {
+          const data = results.data as any[]
+          
+          if (data.length === 0) {
+            setUploadResult({
+              success: false,
+              message: "CSV file is empty or has no valid data."
+            })
+            setUploading(false)
+            return
+          }
+
+          let imported = 0
+          const errorMessages: string[] = []
+
+          for (let i = 0; i < data.length; i++) {
+            const row = data[i]
+            
+            try {
+              // Normalize field names to handle different column headers
+              const expenseData = {
+                business_id: businessId,
+                date: row.date || row.expense_date || row.transaction_date || new Date().toISOString().split('T')[0],
+                category: row.category || row.expense_category || row.expense_type || 'Other',
+                description: row.description || row.expense_description || row.details || '',
+                amount: parseFloat(row.amount || row.expense_amount || row.cost) || 0,
+                receipt_url: row.receipt_url || row.receipt || null
+              }
+
+              // Validate required fields
+              if (!expenseData.description.trim()) {
+                errorMessages.push(`Row ${i + 1}: Description is required`)
+                continue
+              }
+              if (!expenseData.category.trim()) {
+                errorMessages.push(`Row ${i + 1}: Category is required`)
+                continue
+              }
+              if (expenseData.amount <= 0) {
+                errorMessages.push(`Row ${i + 1}: Valid amount is required`)
+                continue
+              }
+
+              const result = await insertData('expenses', expenseData)
+              if (result.error) {
+                errorMessages.push(`Row ${i + 1}: ${result.error.message}`)
+              } else {
+                imported++
+              }
+            } catch (error: any) {
+              errorMessages.push(`Row ${i + 1}: ${error.message}`)
+            }
+          }
+
+          setUploadResult({
+            success: imported > 0,
+            message: `Successfully imported ${imported} of ${data.length} expenses. ${errorMessages.length} errors occurred.`
+          })
+
+          if (imported > 0) {
+            loadExpenses(businessId)
+            toast({
+              title: "Bulk Upload Complete",
+              description: `Successfully imported ${imported} expenses.`
+            })
+          }
+
+          if (errorMessages.length > 0) {
+            console.log("Upload errors:", errorMessages)
+          }
+        },
+        error: (error: any) => {
+          console.error("CSV parsing error:", error)
+          setUploadResult({
+            success: false,
+            message: "Error parsing CSV file. Please check the file format."
+          })
+        }
+      })
+    } catch (error: any) {
+      setUploadResult({
+        success: false,
+        message: `Upload failed: ${error.message}`
+      })
+    } finally {
+      setUploading(false)
+    }
+  }
+
   // Calculate statistics
   const totalExpenses = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0)
   const currentMonth = new Date().getMonth()
@@ -291,6 +418,10 @@ export default function Expenses() {
                 <Download className="h-4 w-4 mr-2" />
                 Export
               </Button>
+              {/* <Button onClick={() => setShowBulkUpload(true)} variant="outline">
+                <Upload className="h-4 w-4 mr-2" />
+                Bulk Upload
+              </Button> */}
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
                   <Button onClick={resetForm} className="bg-blue-600 hover:bg-blue-700">
@@ -559,6 +690,76 @@ export default function Expenses() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Bulk Upload Dialog */}
+        <Dialog open={showBulkUpload} onOpenChange={setShowBulkUpload}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Upload className="h-5 w-5" />
+                Bulk Upload Expenses
+              </DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div className="text-sm text-gray-600">
+                <p>Upload expenses from a CSV file. The file should contain columns for:</p>
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li><strong>date</strong> - Date of expense (YYYY-MM-DD)</li>
+                  <li><strong>description</strong> - Description of the expense</li>
+                  <li><strong>category</strong> - Expense category</li>
+                  <li><strong>amount</strong> - Amount spent</li>
+                  <li><strong>receipt_url</strong> - Optional receipt link</li>
+                </ul>
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={downloadTemplate} variant="outline" size="sm">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Download Template
+                </Button>
+              </div>
+
+              <div>
+                <Label htmlFor="expense-file">Select CSV File</Label>
+                <Input
+                  id="expense-file"
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) {
+                      handleBulkUpload(file)
+                    }
+                  }}
+                  disabled={uploading}
+                />
+              </div>
+
+              {uploading && (
+                <div className="text-center py-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="text-sm text-gray-600 mt-2">Processing expenses...</p>
+                </div>
+              )}
+
+              {uploadResult && (
+                <div className={`p-3 rounded-lg ${uploadResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                  <p className="text-sm">{uploadResult.message}</p>
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-3">
+                <Button type="button" variant="outline" onClick={() => {
+                  setShowBulkUpload(false)
+                  setUploadResult(null)
+                }}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </AuthenticatedLayout>
   )

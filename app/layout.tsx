@@ -37,7 +37,6 @@ export default function RootLayout({
             <AppProvider>
               {children}
               <Toaster />
-              {/* Performance Monitor */}
               <PerformanceMonitor />
             </AppProvider>
           </AuthProvider>

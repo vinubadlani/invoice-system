@@ -1347,12 +1347,288 @@ export const ElegantTemplate: React.FC<TemplateProps> = ({ invoice, business }) 
   </div>
 )
 
+export const ProfessionalA4Template: React.FC<TemplateProps> = ({ invoice, business }) => (
+  <div className="bg-white p-0 print:p-0 max-w-none mx-auto" style={{ width: '210mm', minHeight: '297mm' }}>
+    {/* A4 Professional Invoice Template */}
+    <div className="p-8 print:p-6">
+      {/* Header Section */}
+      <div className="flex justify-between items-start mb-8 border-b-2 border-blue-600 pb-6">
+        <div className="flex-1">
+          <h1 className="text-3xl font-bold text-blue-800 mb-2">{business.name}</h1>
+          <div className="text-gray-700 text-sm space-y-1">
+            <p className="font-medium">{business.address}</p>
+            <p>{business.city}, {business.state} - {business.pincode}</p>
+            <div className="flex gap-6 mt-2">
+              <p><span className="font-semibold">Mobile:</span> {business.phone}</p>
+              <p><span className="font-semibold">Email:</span> {business.email}</p>
+            </div>
+            <p><span className="font-semibold">GSTIN:</span> {business.gstin}</p>
+          </div>
+        </div>
+        
+        <div className="text-right">
+          <div className="bg-blue-600 text-white px-6 py-3 rounded-lg">
+            <h2 className="text-xl font-bold">TAX INVOICE</h2>
+          </div>
+          <div className="mt-3 text-right">
+            <p className="text-lg font-bold text-blue-600">{invoice.invoice_no}</p>
+            <p className="text-sm text-gray-600">Date: {new Date(invoice.date).toLocaleDateString('en-IN')}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Bill To Section */}
+      <div className="grid grid-cols-2 gap-8 mb-6">
+        <div>
+          <h3 className="text-sm font-bold text-gray-800 mb-3 bg-gray-100 px-3 py-2 rounded">
+            BILL TO:
+          </h3>
+          <div className="border border-gray-300 p-4 rounded bg-gray-50">
+            <p className="text-lg font-bold text-gray-900 mb-1">{invoice.party_name}</p>
+            <p className="text-gray-700 text-sm">{invoice.address}</p>
+            <p className="text-gray-700 text-sm">{invoice.state}</p>
+            {invoice.gstin && (
+              <p className="text-gray-700 text-sm mt-2">
+                <span className="font-semibold">GSTIN:</span> {invoice.gstin}
+              </p>
+            )}
+          </div>
+        </div>
+        
+        <div>
+          <h3 className="text-sm font-bold text-gray-800 mb-3 bg-gray-100 px-3 py-2 rounded">
+            INVOICE DETAILS:
+          </h3>
+          <div className="border border-gray-300 p-4 rounded bg-gray-50">
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Invoice Date:</span>
+                <span className="font-semibold">{new Date(invoice.date).toLocaleDateString('en-IN')}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Due Date:</span>
+                <span className="font-semibold">{new Date(new Date(invoice.date).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN')}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Place of Supply:</span>
+                <span className="font-semibold">{invoice.state}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Items Table */}
+      <div className="mb-6">
+        <table className="w-full border-collapse border border-gray-400">
+          <thead>
+            <tr className="bg-blue-50">
+              <th className="border border-gray-400 px-3 py-3 text-left text-xs font-bold text-gray-700" style={{width: '5%'}}>
+                Sr.
+              </th>
+              <th className="border border-gray-400 px-3 py-3 text-left text-xs font-bold text-gray-700" style={{width: '35%'}}>
+                Description of Goods
+              </th>
+              <th className="border border-gray-400 px-3 py-3 text-center text-xs font-bold text-gray-700" style={{width: '8%'}}>
+                HSN
+              </th>
+              <th className="border border-gray-400 px-3 py-3 text-center text-xs font-bold text-gray-700" style={{width: '8%'}}>
+                Qty
+              </th>
+              <th className="border border-gray-400 px-3 py-3 text-right text-xs font-bold text-gray-700" style={{width: '12%'}}>
+                Rate
+              </th>
+              <th className="border border-gray-400 px-3 py-3 text-right text-xs font-bold text-gray-700" style={{width: '12%'}}>
+                Amount
+              </th>
+              <th className="border border-gray-400 px-3 py-3 text-center text-xs font-bold text-gray-700" style={{width: '8%'}}>
+                GST%
+              </th>
+              <th className="border border-gray-400 px-3 py-3 text-right text-xs font-bold text-gray-700" style={{width: '12%'}}>
+                Total
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {invoice.items && Array.isArray(invoice.items) && invoice.items.map((item, index) => (
+              <tr key={item.id || index}>
+                <td className="border border-gray-400 px-3 py-2 text-center text-sm">
+                  {index + 1}
+                </td>
+                <td className="border border-gray-400 px-3 py-2 text-sm">
+                  {item.item_name || item.itemName || item.name || 'Item'}
+                </td>
+                <td className="border border-gray-400 px-3 py-2 text-center text-sm">
+                  {item.hsn_code || item.hsn || 'N/A'}
+                </td>
+                <td className="border border-gray-400 px-3 py-2 text-center text-sm">
+                  {item.quantity || item.qty || 1}
+                </td>
+                <td className="border border-gray-400 px-3 py-2 text-right text-sm">
+                  ₹{Number(item.rate || 0).toFixed(2)}
+                </td>
+                <td className="border border-gray-400 px-3 py-2 text-right text-sm">
+                  ₹{(Number(item.quantity || item.qty || 0) * Number(item.rate || 0)).toFixed(2)}
+                </td>
+                <td className="border border-gray-400 px-3 py-2 text-center text-sm">
+                  {item.gst_percent || item.gstPercent || 0}%
+                </td>
+                <td className="border border-gray-400 px-3 py-2 text-right text-sm font-semibold">
+                  ₹{Number(item.total || (Number(item.quantity || item.qty || 0) * Number(item.rate || 0)) + Number(item.tax_amount || item.taxAmount || 0)).toFixed(2)}
+                </td>
+              </tr>
+            ))}
+            
+            {/* Add empty rows to fill space if needed */}
+            {invoice.items && invoice.items.length < 10 && Array.from({ length: 10 - invoice.items.length }).map((_, index) => (
+              <tr key={`empty-${index}`}>
+                <td className="border border-gray-400 px-3 py-2 text-center text-sm">&nbsp;</td>
+                <td className="border border-gray-400 px-3 py-2 text-sm">&nbsp;</td>
+                <td className="border border-gray-400 px-3 py-2 text-center text-sm">&nbsp;</td>
+                <td className="border border-gray-400 px-3 py-2 text-center text-sm">&nbsp;</td>
+                <td className="border border-gray-400 px-3 py-2 text-right text-sm">&nbsp;</td>
+                <td className="border border-gray-400 px-3 py-2 text-right text-sm">&nbsp;</td>
+                <td className="border border-gray-400 px-3 py-2 text-center text-sm">&nbsp;</td>
+                <td className="border border-gray-400 px-3 py-2 text-right text-sm">&nbsp;</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Summary Section */}
+      <div className="grid grid-cols-2 gap-8 mb-6">
+        <div>
+          <h4 className="text-sm font-bold text-gray-800 mb-3">Amount in Words:</h4>
+          <div className="border border-gray-300 p-3 bg-gray-50 rounded">
+            <p className="text-sm font-semibold text-gray-800">
+              {numberToWords(invoice.net_total)} Rupees Only
+            </p>
+          </div>
+          
+          <h4 className="text-sm font-bold text-gray-800 mb-3 mt-4">Bank Details:</h4>
+          <div className="border border-gray-300 p-3 bg-gray-50 rounded text-xs">
+            <div className="space-y-1">
+              <p><span className="font-semibold">Bank Name:</span> {business.bank_name || "State Bank of India"}</p>
+              <p><span className="font-semibold">A/c No:</span> {business.account_no || "1234567890"}</p>
+              <p><span className="font-semibold">IFSC:</span> {business.ifsc_code || "SBIN0001234"}</p>
+              <p><span className="font-semibold">Branch:</span> {business.branch_name || "Main Branch"}</p>
+            </div>
+          </div>
+        </div>
+        
+        <div>
+          <table className="w-full border-collapse">
+            <tbody>
+              <tr>
+                <td className="border border-gray-400 px-3 py-2 text-right text-sm font-semibold bg-gray-50">
+                  Taxable Amount:
+                </td>
+                <td className="border border-gray-400 px-3 py-2 text-right text-sm font-semibold">
+                  ₹{Number((invoice.net_total || 0) - (invoice.total_tax || 0)).toFixed(2)}
+                </td>
+              </tr>
+              <tr>
+                <td className="border border-gray-400 px-3 py-2 text-right text-sm font-semibold bg-gray-50">
+                  CGST:
+                </td>
+                <td className="border border-gray-400 px-3 py-2 text-right text-sm font-semibold">
+                  ₹{Number((invoice.total_tax || 0) / 2).toFixed(2)}
+                </td>
+              </tr>
+              <tr>
+                <td className="border border-gray-400 px-3 py-2 text-right text-sm font-semibold bg-gray-50">
+                  SGST:
+                </td>
+                <td className="border border-gray-400 px-3 py-2 text-right text-sm font-semibold">
+                  ₹{Number((invoice.total_tax || 0) / 2).toFixed(2)}
+                </td>
+              </tr>
+              <tr>
+                <td className="border border-gray-400 px-3 py-2 text-right text-sm font-semibold bg-gray-50">
+                  Round Off:
+                </td>
+                <td className="border border-gray-400 px-3 py-2 text-right text-sm font-semibold">
+                  ₹{Number(invoice.round_off || 0).toFixed(2)}
+                </td>
+              </tr>
+              <tr className="bg-blue-50">
+                <td className="border border-gray-400 px-3 py-3 text-right text-sm font-bold">
+                  Total Amount:
+                </td>
+                <td className="border border-gray-400 px-3 py-3 text-right text-lg font-bold text-blue-600">
+                  ₹{Number(invoice.net_total || 0).toFixed(2)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Terms and Signature */}
+      <div className="grid grid-cols-2 gap-8 mt-8">
+        <div>
+          <h4 className="text-sm font-bold text-gray-800 mb-2">Terms & Conditions:</h4>
+          <div className="text-xs space-y-1 text-gray-700">
+            {business.terms_conditions ? (
+              <p>{business.terms_conditions}</p>
+            ) : (
+              <>
+                <p>1. Goods once sold will not be taken back</p>
+                <p>2. Interest @ 18% per annum will be charged on overdue amounts</p>
+                <p>3. Subject to {business.city || 'Local'} Jurisdiction</p>
+                <p>4. Our responsibility ceases as soon as the goods leave our premises</p>
+                <p>5. Delivery at buyers risk</p>
+              </>
+            )}
+          </div>
+        </div>
+        
+        <div className="text-right">
+          <div className="mt-4">
+            <p className="text-sm font-bold text-gray-800 mb-1">For {business.name}</p>
+            <div className="mt-12 mb-2">
+              <div className="w-40 border-b border-gray-400 ml-auto"></div>
+            </div>
+            <p className="text-xs text-gray-600">Authorised Signatory</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="mt-6 pt-4 border-t border-gray-300 text-center">
+        <p className="text-xs text-gray-500">
+          This is a Computer Generated Invoice
+        </p>
+      </div>
+    </div>
+
+    {/* Print Styles */}
+    <style jsx>{`
+      @media print {
+        @page { 
+          size: A4; 
+          margin: 0.5in;
+        }
+        body { 
+          print-color-adjust: exact; 
+          -webkit-print-color-adjust: exact; 
+        }
+        .no-print { 
+          display: none !important; 
+        }
+      }
+    `}</style>
+  </div>
+)
+
 // Template mapping for easy access
 export const TEMPLATE_COMPONENTS = {
   classic: ClassicTemplate,
   modern: ModernTemplate,
   corporate: CorporateTemplate,
   elegant: ElegantTemplate,
+  'professional-a4': ProfessionalA4Template,
   receipt: ReceiptTemplate,
   'thermal-receipt': ThermalReceiptTemplate,
   'shipping-label': ShippingLabelTemplate,
