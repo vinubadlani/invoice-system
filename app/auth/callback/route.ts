@@ -6,6 +6,12 @@ export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get("code")
 
+  // Get the site URL from environment variable or use production domain
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hisabkitab.store'
+  
+  // Use production domain for redirects
+  const redirectOrigin = process.env.NODE_ENV === 'production' ? siteUrl : requestUrl.origin
+
   if (code) {
     const cookieStore = cookies()
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
@@ -15,7 +21,7 @@ export async function GET(request: NextRequest) {
 
       if (error) {
         console.error("Auth callback error:", error)
-        return NextResponse.redirect(`${requestUrl.origin}/?error=auth_error`)
+        return NextResponse.redirect(`${redirectOrigin}/?error=auth_error`)
       }
 
       if (data.user) {
@@ -33,12 +39,13 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      return NextResponse.redirect(`${requestUrl.origin}/?verified=true`)
+      // Redirect to dashboard after successful verification
+      return NextResponse.redirect(`${redirectOrigin}/dashboard?verified=true`)
     } catch (error) {
       console.error("Unexpected error in auth callback:", error)
-      return NextResponse.redirect(`${requestUrl.origin}/?error=unexpected_error`)
+      return NextResponse.redirect(`${redirectOrigin}/?error=unexpected_error`)
     }
   }
 
-  return NextResponse.redirect(`${requestUrl.origin}/?error=no_code`)
+  return NextResponse.redirect(`${redirectOrigin}/?error=no_code`)
 }

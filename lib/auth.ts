@@ -35,6 +35,9 @@ export async function signUp(email: string, password: string, fullName: string) 
     throw new Error("Authentication service unavailable")
   }
 
+  // Get the site URL for email confirmation redirect
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hisabkitab.store'
+  
   const { data, error } = await client.auth.signUp({
     email,
     password,
@@ -42,6 +45,7 @@ export async function signUp(email: string, password: string, fullName: string) 
       data: {
         full_name: fullName,
       },
+      emailRedirectTo: `${siteUrl}/auth/callback`,
     },
   })
 

@@ -76,13 +76,17 @@ export default function SignupPage() {
         return
       }
       
+      // Get the site URL for email confirmation redirect
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hisabkitab.store'
+      
       const { data, error } = await client.auth.signUp({
         email: formData.email.trim(),
         password: formData.password,
         options: {
           data: {
             full_name: formData.fullName.trim(),
-          }
+          },
+          emailRedirectTo: `${siteUrl}/auth/callback`,
         }
       })
 
