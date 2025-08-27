@@ -17,9 +17,6 @@ export function getSupabaseClient() {
 
   // Create client if not already created
   if (!supabaseClient) {
-    // Get the site URL for proper redirects
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hisabkitab.store'
-    
     supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,
@@ -27,7 +24,6 @@ export function getSupabaseClient() {
         detectSessionInUrl: true,
         flowType: 'pkce',
         storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-        redirectTo: `${siteUrl}/auth/callback`,
       },
       global: {
         headers: {
