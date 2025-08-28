@@ -30,6 +30,7 @@ import {
   ChevronRight,
   SwitchCamera,
   Receipt,
+  MessageCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -48,6 +49,7 @@ const navigationSections = [
     title: "MAIN",
     items: [
       { name: "Dashboard", href: "/dashboard", icon: Home },
+      { name: "AI Assistant", href: "/chat", icon: MessageCircle },
     ]
   },
   {

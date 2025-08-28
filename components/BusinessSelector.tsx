@@ -159,11 +159,6 @@ export default function BusinessSelector({ onBusinessChange, onBusinessSelect, c
     onBusinessChange?.(business)
     onBusinessSelect?.(business)
     setOpen(false)
-    
-    toast({
-      title: "Business Selected",
-      description: `Switched to ${business.name}`,
-    })
   }
 
   const handleCreateBusiness = async (e: React.FormEvent) => {
@@ -253,19 +248,19 @@ export default function BusinessSelector({ onBusinessChange, onBusinessSelect, c
   // Show create business prompt if no businesses exist
   if (!loading && businesses.length === 0) {
     return (
-      <div className={cn("flex items-center gap-2", className)}>
+      <div className={cn("flex flex-col sm:flex-row items-start sm:items-center gap-2", className)}>
         <div className="flex items-center gap-2 text-gray-600">
           <Building2 className="h-4 w-4" />
           <span className="text-sm">No businesses found</span>
         </div>
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               Create Business
             </Button>
           </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="max-w-2xl mx-4 sm:mx-auto">
                 <DialogHeader>
                   <DialogTitle>Create New Business</DialogTitle>
                 </DialogHeader>
@@ -397,14 +392,14 @@ export default function BusinessSelector({ onBusinessChange, onBusinessSelect, c
   }
 
   return (
-    <div className={cn("flex items-center gap-2", className)}>
+    <div className={cn("flex flex-col sm:flex-row items-start sm:items-center gap-2", className)}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="w-64 justify-between"
+            className="w-full sm:w-64 justify-between"
           >
             {selectedBusiness ? (
               <div className="flex items-center gap-2">
@@ -454,12 +449,12 @@ export default function BusinessSelector({ onBusinessChange, onBusinessSelect, c
 
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
         <DialogTrigger asChild>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" />
             New Business
           </Button>
         </DialogTrigger>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto mx-4 sm:mx-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Building2 className="h-5 w-5" />
@@ -600,7 +595,7 @@ export default function BusinessSelector({ onBusinessChange, onBusinessSelect, c
       </Dialog>
 
       {selectedBusiness && (
-        <Badge variant="outline" className="text-xs">
+        <Badge variant="outline" className="text-xs mt-2 sm:mt-0">
           <Settings className="h-3 w-3 mr-1" />
           Active
         </Badge>

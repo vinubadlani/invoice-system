@@ -128,24 +128,67 @@ export default function Settings() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    const storedBusiness = localStorage.getItem("selectedBusiness")
-    if (storedBusiness) {
-      const businessData = JSON.parse(storedBusiness)
-      setBusiness(businessData)
-      setSelectedTemplate(businessData.invoice_template || "classic")
-    }
-    
-    // Load user settings from localStorage
-    const savedSettings = localStorage.getItem("userSettings")
-    if (savedSettings) {
-      setUserSettings(JSON.parse(savedSettings))
-    }
-    
-    setLoading(false)
+    loadBusinessData()
   }, [])
 
+  const loadBusinessData = async () => {
+    try {
+      const storedBusiness = localStorage.getItem("selectedBusiness")
+      if (storedBusiness) {
+        const businessData = JSON.parse(storedBusiness)
+        
+        // Fetch fresh data from database to ensure we have latest
+        const client = getSupabaseClient()
+        if (client && businessData.id) {
+          const { data: freshBusiness, error } = await client
+            .from("businesses")
+            .select("*")
+            .eq("id", businessData.id)
+            .single()
+
+          if (!error && freshBusiness) {
+            const businessData = freshBusiness as unknown as Business
+            setBusiness(businessData)
+            setSelectedTemplate(businessData.invoice_template || "classic")
+            // Update localStorage with fresh data
+            localStorage.setItem("selectedBusiness", JSON.stringify(businessData))
+          } else {
+            // Fallback to stored data if database fetch fails
+            setBusiness(businessData)
+            setSelectedTemplate(businessData.invoice_template || "classic")
+          }
+        } else {
+          setBusiness(businessData)
+          setSelectedTemplate(businessData.invoice_template || "classic")
+        }
+      }
+      
+      // Load user settings from localStorage
+      const savedSettings = localStorage.getItem("userSettings")
+      if (savedSettings) {
+        setUserSettings(JSON.parse(savedSettings))
+      }
+    } catch (error) {
+      console.error("Error loading business data:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load business settings",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleBusinessSave = async () => {
-    if (!business) return
+    if (!business) {
+      toast({
+        title: "Error",
+        description: "No business data to save",
+        variant: "destructive"
+      })
+      return
+    }
     
     setSaving(true)
     try {
@@ -173,22 +216,39 @@ export default function Settings() {
         invoice_template: selectedTemplate
       }
 
-      const { error } = await client
+      console.log("Updating business with ID:", business.id)
+      console.log("Update data:", updateData)
+
+      const { data, error } = await client
         .from("businesses")
         .update(updateData)
         .eq("id", business.id)
+        .select()
+        .single()
 
-      if (error) throw error
+      if (error) {
+        console.error("Database update error:", error)
+        throw error
+      }
 
-      // Update localStorage
-      const updatedBusiness = { ...business, invoice_template: selectedTemplate }
+      console.log("Business updated successfully:", data)
+
+      // Update localStorage with fresh data
+      const updatedBusiness = { ...business, ...updateData }
       setBusiness(updatedBusiness)
       localStorage.setItem("selectedBusiness", JSON.stringify(updatedBusiness))
       
-      alert("Business settings saved successfully!")
-    } catch (error) {
+      toast({
+        title: "Success",
+        description: "Business settings saved successfully!",
+      })
+    } catch (error: any) {
       console.error("Error saving business settings:", error)
-      alert("Error saving business settings")
+      toast({
+        title: "Error", 
+        description: error?.message || "Failed to save business settings",
+        variant: "destructive"
+      })
     } finally {
       setSaving(false)
     }

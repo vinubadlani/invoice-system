@@ -262,34 +262,34 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
           </div>
 
           {/* Content Area */}
-          <div className="p-8">
+          <div className="p-6">
             {/* Bill To / Ship To Section */}
-            <div className="grid grid-cols-2 gap-8 mb-8">
+            <div className="grid grid-cols-2 gap-6 mb-6">
               {/* Bill To */}
-              <div className="border border-blue-200 rounded-lg p-6 bg-blue-50">
-                <div className="flex items-center gap-2 mb-4">
-                  <CreditCard className="h-5 w-5 text-blue-600" />
-                  <h3 className="text-lg font-bold text-gray-800 uppercase">Bill To</h3>
+              <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+                <div className="flex items-center gap-2 mb-3">
+                  <CreditCard className="h-4 w-4 text-blue-600" />
+                  <h3 className="text-base font-bold text-gray-800 uppercase">Bill To</h3>
                 </div>
-                <div className="space-y-2">
-                  <div className="font-bold text-gray-800 text-lg">{invoice.party.name}</div>
-                  <div className="text-gray-700 flex items-start gap-2">
-                    <MapPin className="h-4 w-4 mt-0.5 text-blue-500 flex-shrink-0" />
+                <div className="space-y-1">
+                  <div className="font-bold text-gray-800 text-base">{invoice.party.name}</div>
+                  <div className="text-gray-700 text-sm flex items-start gap-2">
+                    <MapPin className="h-3 w-3 mt-0.5 text-blue-500 flex-shrink-0" />
                     <span>{invoice.party.address}</span>
                   </div>
                   {invoice.party.mobile && (
-                    <div className="text-gray-700 flex items-center gap-2">
-                      <Phone className="h-4 w-4 text-blue-500" />
+                    <div className="text-gray-700 text-sm flex items-center gap-2">
+                      <Phone className="h-3 w-3 text-blue-500" />
                       <span>{invoice.party.mobile}</span>
                     </div>
                   )}
                   {invoice.party.state && (
-                    <div className="text-gray-700">
+                    <div className="text-gray-700 text-sm">
                       <span className="font-medium">Place of Supply:</span> {invoice.party.state}
                     </div>
                   )}
                   {invoice.party.gstin && (
-                    <div className="text-gray-700">
+                    <div className="text-gray-700 text-sm">
                       <span className="font-medium">GSTIN:</span> {invoice.party.gstin}
                     </div>
                   )}
@@ -297,25 +297,25 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
               </div>
 
               {/* Ship To */}
-              <div className="border border-green-200 rounded-lg p-6 bg-green-50">
-                <div className="flex items-center gap-2 mb-4">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  <h3 className="text-lg font-bold text-gray-800 uppercase">Ship To</h3>
+              <div className="border border-green-200 rounded-lg p-4 bg-green-50">
+                <div className="flex items-center gap-2 mb-3">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <h3 className="text-base font-bold text-gray-800 uppercase">Ship To</h3>
                 </div>
-                <div className="space-y-2">
-                  <div className="font-bold text-gray-800 text-lg">{invoice.party.name}</div>
-                  <div className="text-gray-700 flex items-start gap-2">
-                    <MapPin className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0" />
+                <div className="space-y-1">
+                  <div className="font-bold text-gray-800 text-base">{invoice.party.name}</div>
+                  <div className="text-gray-700 text-sm flex items-start gap-2">
+                    <MapPin className="h-3 w-3 mt-0.5 text-green-500 flex-shrink-0" />
                     <span>{invoice.party.address}</span>
                   </div>
                   {invoice.party.mobile && (
-                    <div className="text-gray-700 flex items-center gap-2">
-                      <Phone className="h-4 w-4 text-green-500" />
+                    <div className="text-gray-700 text-sm flex items-center gap-2">
+                      <Phone className="h-3 w-3 text-green-500" />
                       <span>{invoice.party.mobile}</span>
                     </div>
                   )}
                   {invoice.party.state && (
-                    <div className="text-gray-700">
+                    <div className="text-gray-700 text-sm">
                       <span className="font-medium">Place of Supply:</span> {invoice.party.state}
                     </div>
                   )}
@@ -324,7 +324,7 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
             </div>
 
             {/* Items Table */}
-            <div className="mb-8">
+            <div className="mb-6">
               <div className="overflow-hidden rounded-lg border border-gray-300 shadow-sm">
                 <table className="w-full border-collapse">
                   <thead>
@@ -384,16 +384,16 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
                       </tr>
                     )}
                     
-                    {/* Fill empty rows for consistent layout */}
-                    {invoiceItems && invoiceItems.length < 8 && Array.from({ length: 8 - invoiceItems.length }).map((_, index) => (
+                    {/* Fill empty rows for consistent layout but reduce count */}
+                    {invoiceItems && invoiceItems.length < 5 && Array.from({ length: 5 - invoiceItems.length }).map((_, index) => (
                       <tr key={`empty-${index}`} className="border-b border-gray-100">
-                        <td className="border border-gray-200 px-4 py-4 h-14 text-gray-300">&nbsp;</td>
-                        <td className="border border-gray-200 px-4 py-4 text-gray-300">&nbsp;</td>
-                        <td className="border border-gray-200 px-4 py-4 text-gray-300">&nbsp;</td>
-                        <td className="border border-gray-200 px-4 py-4 text-gray-300">&nbsp;</td>
-                        <td className="border border-gray-200 px-4 py-4 text-gray-300">&nbsp;</td>
-                        <td className="border border-gray-200 px-4 py-4 text-gray-300">&nbsp;</td>
-                        <td className="border border-gray-200 px-4 py-4 text-gray-300">&nbsp;</td>
+                        <td className="border border-gray-200 px-4 py-2 h-10 text-gray-300">&nbsp;</td>
+                        <td className="border border-gray-200 px-4 py-2 text-gray-300">&nbsp;</td>
+                        <td className="border border-gray-200 px-4 py-2 text-gray-300">&nbsp;</td>
+                        <td className="border border-gray-200 px-4 py-2 text-gray-300">&nbsp;</td>
+                        <td className="border border-gray-200 px-4 py-2 text-gray-300">&nbsp;</td>
+                        <td className="border border-gray-200 px-4 py-2 text-gray-300">&nbsp;</td>
+                        <td className="border border-gray-200 px-4 py-2 text-gray-300">&nbsp;</td>
                       </tr>
                     ))}
 
@@ -409,14 +409,14 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
             </div>
 
             {/* Bottom Section */}
-            <div className="grid grid-cols-2 gap-8">
+            <div className="grid grid-cols-2 gap-6">
               {/* Terms and Conditions */}
-              <div className="border border-gray-200 rounded-lg p-6 bg-gray-50">
-                <h4 className="text-lg font-bold text-gray-800 mb-4 uppercase flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-blue-600" />
+              <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                <h4 className="text-base font-bold text-gray-800 mb-3 uppercase flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-blue-600" />
                   Terms and Conditions
                 </h4>
-                <div className="text-sm text-gray-700 space-y-2">
+                <div className="text-xs text-gray-700 space-y-1">
                   <div className="flex items-start gap-2">
                     <span className="font-bold text-blue-600">1.</span>
                     <span>Goods once sold will not be taken back or exchanged</span>
@@ -435,36 +435,36 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
               </div>
 
               {/* Totals Section */}
-              <div className="space-y-6">
-                <div className="border border-blue-200 rounded-lg p-6 bg-blue-50">
-                  <h4 className="text-lg font-bold text-gray-800 mb-4 uppercase">Payment Summary</h4>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center text-base">
+              <div className="space-y-4">
+                <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+                  <h4 className="text-base font-bold text-gray-800 mb-3 uppercase">Payment Summary</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-sm">
                       <span className="text-gray-700">Taxable Amount</span>
                       <span className="font-semibold text-gray-800">₹ {formatNumber(displaySubtotal)}</span>
                     </div>
-                    <div className="flex justify-between items-center text-base">
+                    <div className="flex justify-between items-center text-sm">
                       <span className="text-gray-700">IGST @{invoiceItems?.[0]?.gst_percent || 0}%</span>
                       <span className="font-semibold text-gray-800">₹ {formatNumber(displayTotalTax)}</span>
                     </div>
-                    <div className="flex justify-between items-center text-base">
+                    <div className="flex justify-between items-center text-sm">
                       <span className="text-gray-700">Round Off</span>
                       <span className="font-semibold text-gray-800">₹ 0.01</span>
                     </div>
-                    <div className="border-t-2 border-blue-300 pt-3 flex justify-between items-center">
-                      <span className="font-bold text-lg text-gray-800">Total Amount</span>
-                      <span className="font-bold text-xl text-blue-600">₹ {formatNumber(displayNetTotal)}</span>
+                    <div className="border-t-2 border-blue-300 pt-2 flex justify-between items-center">
+                      <span className="font-bold text-base text-gray-800">Total Amount</span>
+                      <span className="font-bold text-lg text-blue-600">₹ {formatNumber(displayNetTotal)}</span>
                     </div>
-                    <div className="flex justify-between items-center text-base">
+                    <div className="flex justify-between items-center text-sm">
                       <span className="text-gray-700">Received Amount</span>
                       <span className="font-semibold text-green-600">₹ {formatNumber(invoice.payment_received || 0)}</span>
                     </div>
                   </div>
                 </div>
                 
-                <div className="border border-green-200 rounded-lg p-6 bg-green-50">
-                  <div className="text-sm text-gray-600 mb-2 font-medium uppercase">Total Amount (in words)</div>
-                  <div className="text-base font-bold text-gray-800 leading-relaxed">
+                <div className="border border-green-200 rounded-lg p-4 bg-green-50">
+                  <div className="text-xs text-gray-600 mb-1 font-medium uppercase">Total Amount (in words)</div>
+                  <div className="text-sm font-bold text-gray-800 leading-relaxed">
                     {numberToWords(Math.round(displayNetTotal))}
                   </div>
                 </div>
@@ -472,17 +472,17 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
             </div>
 
             {/* Signature Section */}
-            <div className="flex justify-end mt-12">
+            <div className="flex justify-end mt-8">
               <div className="text-center">
-                <div className="w-48 h-20 border-b-2 border-blue-300 mb-3"></div>
-                <div className="text-base text-gray-600 font-medium">Authorised Signature</div>
-                <div className="font-bold text-gray-800 mt-1 text-base">{invoice.business.name}</div>
+                <div className="w-40 h-16 border-b-2 border-blue-300 mb-2"></div>
+                <div className="text-sm text-gray-600 font-medium">Authorised Signature</div>
+                <div className="font-bold text-gray-800 mt-1 text-sm">{invoice.business.name}</div>
               </div>
             </div>
 
             {/* Footer */}
-            <div className="text-center mt-8 pt-6 border-t border-blue-200">
-              <div className="text-sm text-gray-500 italic">
+            <div className="text-center mt-6 pt-4 border-t border-blue-200">
+              <div className="text-xs text-gray-500 italic">
                 This is a computer-generated invoice and does not require a physical signature.
               </div>
             </div>
@@ -516,15 +516,23 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
           
           .invoice-page {
             width: 210mm !important;
-            min-height: 297mm !important;
+            min-height: auto !important;
+            max-height: 297mm !important;
             margin: 0 !important;
             padding: 0 !important;
             box-shadow: none !important;
             border: none !important;
             border-radius: 0 !important;
-            page-break-after: always;
             font-size: 18px !important;
             background: white !important;
+            page-break-after: avoid !important;
+            page-break-inside: avoid !important;
+            overflow: hidden !important;
+          }
+          
+          @page {
+            size: A4;
+            margin: 0;
           }
           
           .bg-gradient-to-r {
@@ -616,8 +624,10 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
         
         .invoice-page {
           width: 210mm;
-          min-height: 297mm;
+          min-height: auto;
+          max-height: 297mm;
           margin: 0 auto;
+          overflow: hidden;
         }
       `}</style>
     </div>
