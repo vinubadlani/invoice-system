@@ -49,7 +49,6 @@ const navigationSections = [
     title: "MAIN",
     items: [
       { name: "Dashboard", href: "/dashboard", icon: Home },
-      { name: "AI Assistant", href: "/chat", icon: MessageCircle },
     ]
   },
   {
