@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS public.businesses (
   email TEXT NOT NULL,
   gstin TEXT,
   pan TEXT,
+  invoice_template TEXT DEFAULT 'classic',
   terms_conditions TEXT DEFAULT 'Payment due within 30 days
 Goods once sold will not be taken back
 Interest @ 18% p.a. will be charged on overdue amounts

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { supabase, getSupabaseClient } from "@/lib/supabase"
 import { useOptimizedData } from "@/lib/cache-store"
+import { useBusiness } from "@/app/context/BusinessContext"
 import { Building2, Plus, Check, ChevronsUpDown, Loader2, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -25,12 +26,12 @@ interface BusinessSelectorProps {
 
 export default function BusinessSelector({ onBusinessChange, onBusinessSelect, className }: BusinessSelectorProps) {
   const [businesses, setBusinesses] = useState<Business[]>([])
-  const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null)
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const { preloadCriticalData, clearCache } = useOptimizedData()
+  const { selectedBusiness, setSelectedBusiness } = useBusiness()
   const { toast } = useToast()
 
   const [newBusinessForm, setNewBusinessForm] = useState({
@@ -88,25 +89,22 @@ export default function BusinessSelector({ onBusinessChange, onBusinessSelect, c
       setBusinesses(data || [])
       
       // Auto-select business logic - optimized
-      const storedBusinessId = localStorage.getItem("selectedBusinessId")
-      if (storedBusinessId && data && data.length > 0) {
-        const business = data.find((b: Business) => b.id === storedBusinessId)
-        if (business) {
-          await selectBusiness(business, false) // Don't preload on initial load
-          return
-        } else {
-          // Clean up invalid stored business ID
-          localStorage.removeItem("selectedBusinessId")
-          localStorage.removeItem("selectedBusiness")
+      if (!selectedBusiness && data && data.length > 0) {
+        const storedBusinessId = localStorage.getItem("selectedBusinessId")
+        if (storedBusinessId) {
+          const business = data.find((b: Business) => b.id === storedBusinessId)
+          if (business) {
+            await selectBusiness(business, false) // Don't preload on initial load
+            return
+          } else {
+            // Clean up invalid stored business ID
+            localStorage.removeItem("selectedBusinessId")
+            localStorage.removeItem("selectedBusiness")
+          }
         }
-      }
-      
-      // Select first business if available and no stored business
-      if (data && data.length > 0) {
+        
+        // Select first business if available and no stored business
         await selectBusiness(data[0], false)
-      } else {
-        // No businesses found - show creation prompt
-        console.log("No businesses found for user")
       }
     } catch (error: any) {
       console.error("Error fetching businesses:", error)
@@ -143,10 +141,6 @@ export default function BusinessSelector({ onBusinessChange, onBusinessSelect, c
 
   const selectBusiness = async (business: Business, shouldPreload = true) => {
     setSelectedBusiness(business)
-    
-    // Store both full business object and just ID for faster lookup
-    localStorage.setItem("selectedBusiness", JSON.stringify(business))
-    localStorage.setItem("selectedBusinessId", business.id)
     
     // Only preload if explicitly requested (not on initial load)
     if (shouldPreload) {

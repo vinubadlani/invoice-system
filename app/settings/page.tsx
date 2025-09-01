@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { supabase, getSupabaseClient } from "@/lib/supabase"
+import { useBusiness } from "@/app/context/BusinessContext"
+import { Business } from "@/lib/types"
 import { Save, Building, User, Bell, Shield, Palette, Database, FileText, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,21 +16,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import AuthenticatedLayout from "@/components/AuthenticatedLayout"
 import { useToast } from "@/hooks/use-toast"
-
-interface Business {
-  id: string
-  name: string
-  address: string
-  city: string
-  state: string
-  pincode: string
-  phone: string
-  email: string
-  gstin: string
-  pan: string
-  terms_conditions: string
-  invoice_template?: string
-}
 
 interface UserSettings {
   notifications: boolean
@@ -114,7 +101,7 @@ const INVOICE_TEMPLATES = [
 ]
 
 export default function Settings() {
-  const [business, setBusiness] = useState<Business | null>(null)
+  const { selectedBusiness: business, updateBusinessData } = useBusiness()
   const [userSettings, setUserSettings] = useState<UserSettings>({
     notifications: true,
     emailAlerts: true,
@@ -126,41 +113,18 @@ export default function Settings() {
   const [selectedTemplate, setSelectedTemplate] = useState("classic")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [localBusiness, setLocalBusiness] = useState<Business | null>(null)
 
   useEffect(() => {
-    loadBusinessData()
-  }, [])
+    loadData()
+  }, [business])
 
-  const loadBusinessData = async () => {
+  const loadData = async () => {
     try {
-      const storedBusiness = localStorage.getItem("selectedBusiness")
-      if (storedBusiness) {
-        const businessData = JSON.parse(storedBusiness)
-        
-        // Fetch fresh data from database to ensure we have latest
-        const client = getSupabaseClient()
-        if (client && businessData.id) {
-          const { data: freshBusiness, error } = await client
-            .from("businesses")
-            .select("*")
-            .eq("id", businessData.id)
-            .single()
-
-          if (!error && freshBusiness) {
-            const businessData = freshBusiness as unknown as Business
-            setBusiness(businessData)
-            setSelectedTemplate(businessData.invoice_template || "classic")
-            // Update localStorage with fresh data
-            localStorage.setItem("selectedBusiness", JSON.stringify(businessData))
-          } else {
-            // Fallback to stored data if database fetch fails
-            setBusiness(businessData)
-            setSelectedTemplate(businessData.invoice_template || "classic")
-          }
-        } else {
-          setBusiness(businessData)
-          setSelectedTemplate(businessData.invoice_template || "classic")
-        }
+      // Use business from context
+      if (business) {
+        setLocalBusiness(business)
+        setSelectedTemplate(business.invoice_template || "classic")
       }
       
       // Load user settings from localStorage
@@ -169,10 +133,10 @@ export default function Settings() {
         setUserSettings(JSON.parse(savedSettings))
       }
     } catch (error) {
-      console.error("Error loading business data:", error)
+      console.error("Error loading data:", error)
       toast({
         title: "Error",
-        description: "Failed to load business settings",
+        description: "Failed to load settings",
         variant: "destructive"
       })
     } finally {
@@ -181,7 +145,7 @@ export default function Settings() {
   }
 
   const handleBusinessSave = async () => {
-    if (!business) {
+    if (!localBusiness) {
       toast({
         title: "Error",
         description: "No business data to save",
@@ -192,51 +156,25 @@ export default function Settings() {
     
     setSaving(true)
     try {
-      const client = getSupabaseClient()
-      if (!client) {
-        toast({
-          title: "Error",
-          description: "Service temporarily unavailable. Please try again later.",
-          variant: "destructive",
-        })
-        return
-      }
-      
       const updateData = {
-        name: business.name,
-        address: business.address,
-        city: business.city,
-        state: business.state,
-        pincode: business.pincode,
-        phone: business.phone,
-        email: business.email,
-        gstin: business.gstin,
-        pan: business.pan,
-        terms_conditions: business.terms_conditions,
+        name: localBusiness.name,
+        address: localBusiness.address,
+        city: localBusiness.city,
+        state: localBusiness.state,
+        pincode: localBusiness.pincode,
+        phone: localBusiness.phone,
+        email: localBusiness.email,
+        gstin: localBusiness.gstin,
+        pan: localBusiness.pan,
+        terms_conditions: localBusiness.terms_conditions,
         invoice_template: selectedTemplate
       }
 
-      console.log("Updating business with ID:", business.id)
+      console.log("Updating business with ID:", localBusiness.id)
       console.log("Update data:", updateData)
 
-      const { data, error } = await client
-        .from("businesses")
-        .update(updateData)
-        .eq("id", business.id)
-        .select()
-        .single()
-
-      if (error) {
-        console.error("Database update error:", error)
-        throw error
-      }
-
-      console.log("Business updated successfully:", data)
-
-      // Update localStorage with fresh data
-      const updatedBusiness = { ...business, ...updateData }
-      setBusiness(updatedBusiness)
-      localStorage.setItem("selectedBusiness", JSON.stringify(updatedBusiness))
+      // Use the context's update function which handles global propagation
+      await updateBusinessData(localBusiness.id, updateData)
       
       toast({
         title: "Success",
@@ -254,10 +192,10 @@ export default function Settings() {
     }
   }
 
-  const handleTemplateSelect = (templateId: string) => {
+    const handleTemplateSelect = (templateId: string) => {
     setSelectedTemplate(templateId)
-    if (business) {
-      setBusiness({ ...business, invoice_template: templateId })
+    if (localBusiness) {
+      setLocalBusiness({ ...localBusiness, invoice_template: templateId })
     }
   }
 
@@ -312,8 +250,8 @@ export default function Settings() {
                       <Label htmlFor="name">Business Name</Label>
                       <Input
                         id="name"
-                        value={business.name}
-                        onChange={(e) => setBusiness({ ...business, name: e.target.value })}
+                        value={localBusiness?.name || ""}
+                        onChange={(e) => setLocalBusiness(prev => prev ? { ...prev, name: e.target.value } : null)}
                       />
                     </div>
                     <div>
@@ -321,64 +259,64 @@ export default function Settings() {
                       <Input
                         id="email"
                         type="email"
-                        value={business.email}
-                        onChange={(e) => setBusiness({ ...business, email: e.target.value })}
+                        value={localBusiness?.email || ""}
+                        onChange={(e) => setLocalBusiness(prev => prev ? { ...prev, email: e.target.value } : null)}
                       />
                     </div>
                     <div>
                       <Label htmlFor="phone">Phone</Label>
                       <Input
                         id="phone"
-                        value={business.phone}
-                        onChange={(e) => setBusiness({ ...business, phone: e.target.value })}
+                        value={localBusiness?.phone || ""}
+                        onChange={(e) => setLocalBusiness(prev => prev ? { ...prev, phone: e.target.value } : null)}
                       />
                     </div>
                     <div>
                       <Label htmlFor="gstin">GSTIN</Label>
                       <Input
                         id="gstin"
-                        value={business.gstin}
-                        onChange={(e) => setBusiness({ ...business, gstin: e.target.value })}
+                        value={localBusiness?.gstin || ""}
+                        onChange={(e) => setLocalBusiness(prev => prev ? { ...prev, gstin: e.target.value } : null)}
                       />
                     </div>
                     <div>
                       <Label htmlFor="pan">PAN</Label>
                       <Input
                         id="pan"
-                        value={business.pan}
-                        onChange={(e) => setBusiness({ ...business, pan: e.target.value })}
+                        value={localBusiness?.pan || ""}
+                        onChange={(e) => setLocalBusiness(prev => prev ? { ...prev, pan: e.target.value } : null)}
                       />
                     </div>
                     <div>
                       <Label htmlFor="pincode">Pincode</Label>
                       <Input
                         id="pincode"
-                        value={business.pincode}
-                        onChange={(e) => setBusiness({ ...business, pincode: e.target.value })}
+                        value={localBusiness?.pincode || ""}
+                        onChange={(e) => setLocalBusiness(prev => prev ? { ...prev, pincode: e.target.value } : null)}
                       />
                     </div>
                     <div>
                       <Label htmlFor="city">City</Label>
                       <Input
                         id="city"
-                        value={business.city}
-                        onChange={(e) => setBusiness({ ...business, city: e.target.value })}
+                        value={localBusiness?.city || ""}
+                        onChange={(e) => setLocalBusiness(prev => prev ? { ...prev, city: e.target.value } : null)}
                       />
                     </div>
                     <div>
                       <Label htmlFor="state">State</Label>
                       <Input
                         id="state"
-                        value={business.state}
-                        onChange={(e) => setBusiness({ ...business, state: e.target.value })}
+                        value={localBusiness?.state || ""}
+                        onChange={(e) => setLocalBusiness(prev => prev ? { ...prev, state: e.target.value } : null)}
                       />
                     </div>
                     <div className="md:col-span-2">
                       <Label htmlFor="address">Address</Label>
                       <Textarea
                         id="address"
-                        value={business.address}
-                        onChange={(e) => setBusiness({ ...business, address: e.target.value })}
+                        value={localBusiness?.address || ""}
+                        onChange={(e) => setLocalBusiness(prev => prev ? { ...prev, address: e.target.value } : null)}
                       />
                     </div>
                     <div className="md:col-span-2">
@@ -386,8 +324,8 @@ export default function Settings() {
                       <Textarea
                         id="terms"
                         rows={4}
-                        value={business.terms_conditions}
-                        onChange={(e) => setBusiness({ ...business, terms_conditions: e.target.value })}
+                        value={localBusiness?.terms_conditions || ""}
+                        onChange={(e) => setLocalBusiness(prev => prev ? { ...prev, terms_conditions: e.target.value } : null)}
                       />
                     </div>
                   </div>
@@ -664,7 +602,7 @@ export default function Settings() {
                     </p>
                     <Button onClick={async () => {
                       try {
-                        if (!business) return
+                        if (!localBusiness) return
                         
                         const client = getSupabaseClient()
                         if (!client) {
@@ -680,25 +618,25 @@ export default function Settings() {
                         const { data: parties } = await client
                           .from("parties")
                           .select("*")
-                          .eq("business_id", business.id)
+                          .eq("business_id", localBusiness.id)
 
                         const { data: items } = await client
                           .from("items")
                           .select("*")
-                          .eq("business_id", business.id)
+                          .eq("business_id", localBusiness.id)
 
                         const { data: invoices } = await client
                           .from("invoices")
                           .select("*")
-                          .eq("business_id", business.id)
+                          .eq("business_id", localBusiness.id)
 
                         const { data: payments } = await client
                           .from("payments")
                           .select("*")
-                          .eq("business_id", business.id)
+                          .eq("business_id", localBusiness.id)
 
                         const backupData = {
-                          business,
+                          business: localBusiness,
                           parties,
                           items,
                           invoices,
@@ -711,7 +649,7 @@ export default function Settings() {
                         const url = URL.createObjectURL(blob)
                         const a = document.createElement("a")
                         a.href = url
-                        a.download = `${business.name}_backup_${new Date().toISOString().split('T')[0]}.json`
+                        a.download = `${localBusiness.name}_backup_${new Date().toISOString().split('T')[0]}.json`
                         document.body.appendChild(a)
                         a.click()
                         document.body.removeChild(a)

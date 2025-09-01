@@ -321,6 +321,9 @@ class OptimizedCache {
   invalidateBusinessData(businessId: string): void {
     const keysToInvalidate = [
       `parties-${businessId}`,
+      `parties-${businessId}-Debtor`,
+      `parties-${businessId}-Creditor`, 
+      `parties-${businessId}-Expense`,
       `items-${businessId}`,
       `business-${businessId}`,
       `recent-invoices-${businessId}-sales-10`,
@@ -328,6 +331,41 @@ class OptimizedCache {
     ]
     
     keysToInvalidate.forEach(key => this.cache.delete(key))
+  }
+
+  // Update business data and invalidate cache
+  async updateBusiness(businessId: string, businessData: any): Promise<any> {
+    try {
+      const client = getSupabaseClient()
+      if (!client) throw new Error("Service unavailable")
+
+      const { data, error } = await client
+        .from("businesses")
+        .update(businessData)
+        .eq("id", businessId)
+        .select()
+        .single()
+
+      if (error) throw error
+
+      // Update cache with new data
+      const cacheKey = `business-${businessId}`
+      this.set(cacheKey, data, this.DEFAULT_EXPIRY * 2)
+      
+      // Also update localStorage
+      const storedBusiness = localStorage.getItem("selectedBusiness")
+      if (storedBusiness) {
+        const parsed = JSON.parse(storedBusiness)
+        if (parsed.id === businessId) {
+          localStorage.setItem("selectedBusiness", JSON.stringify(data))
+        }
+      }
+
+      return data
+    } catch (error) {
+      console.error("Error updating business:", error)
+      throw error
+    }
   }
 }
 
@@ -419,6 +457,7 @@ export function useOptimizedData() {
       optimizedCache.fetchRecentInvoices(businessId, type, limit),
     preloadCriticalData: (businessId: string) => optimizedCache.preloadCriticalData(businessId),
     invalidateBusinessData: (businessId: string) => optimizedCache.invalidateBusinessData(businessId),
+    updateBusiness: (businessId: string, businessData: any) => optimizedCache.updateBusiness(businessId, businessData),
     clearCache: () => optimizedCache.clear()
   }
 }

@@ -9,6 +9,7 @@ export interface Business {
   email: string
   gstin: string
   pan: string
+  invoice_template?: string
   terms_conditions?: string
   created_at?: string
   user_id?: string

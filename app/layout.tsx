@@ -4,6 +4,7 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { AuthProvider } from "@/components/AuthProvider"
 import { AppProvider } from "@/app/context/AppContext"
+import { BusinessProvider } from "@/app/context/BusinessContext"
 import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from "@/components/theme-provider"
 import PerformanceMonitor from "@/components/PerformanceMonitor"
@@ -17,6 +18,11 @@ export const metadata: Metadata = {
   keywords: "invoicing, accounting, billing, inventory, business management, hisab kitaab",
   authors: [{ name: "Hisab Kitaab Team" }],
   viewport: "width=device-width, initial-scale=1",
+  icons: {
+    icon: '/hisabkitab.ico',
+    shortcut: '/hisabkitab.ico',
+    apple: '/hisabkitab.ico',
+  },
 }
 
 export default function RootLayout({
@@ -34,11 +40,13 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AuthProvider>
-            <AppProvider>
-              {children}
-              <Toaster />
-              <PerformanceMonitor />
-            </AppProvider>
+            <BusinessProvider>
+              <AppProvider>
+                {children}
+                <Toaster />
+                <PerformanceMonitor />
+              </AppProvider>
+            </BusinessProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>
