@@ -71,7 +71,8 @@ export default function SalesBulkUploadDialog({
   const downloadSalesTemplate = () => {
     const csvContent = "invoice_number,invoice_date,party_name,item_name,quantity,rate,amount,gst_amount,total_amount,notes\n"
       + "SI001,2024-01-15,ABC Company,Sample Product,10,100,1000,180,1180,Sample sales entry\n"
-      + "SI002,2024-01-16,XYZ Corp,Service Item,5,200,1000,180,1180,Service provided\n"
+      + "SI001,2024-01-15,ABC Company,Service Item,5,200,1000,180,1180,Additional item for same invoice\n"
+      + "SI002,2024-01-16,XYZ Corp,Another Product,8,150,1200,216,1416,Different invoice\n"
     
     const blob = new Blob([csvContent], { type: "text/csv" })
     const url = URL.createObjectURL(blob)
@@ -144,16 +145,53 @@ export default function SalesBulkUploadDialog({
 
   const processFileData = (csvData: any[]) => {
     const headers = Object.keys(csvData[0] || {})
+    
+    // Group rows by invoice number for validation
+    const invoiceGroups = new Map<string, any[]>()
+    csvData.forEach((rowData, index) => {
+      const invoiceNo = rowData.invoice_number || rowData.invoice_no || `auto-${index}`
+      if (!invoiceGroups.has(invoiceNo)) {
+        invoiceGroups.set(invoiceNo, [])
+      }
+      invoiceGroups.get(invoiceNo)!.push({ ...rowData, originalIndex: index })
+    })
+
     const rows: ReviewRow[] = csvData.map((rowData, index) => {
+      const invoiceNo = rowData.invoice_number || rowData.invoice_no || `auto-${index}`
+      const groupRows = invoiceGroups.get(invoiceNo) || []
+      
+      // Validate individual row
       const validation = validateRow(rowData)
+      
+      // Add invoice-specific validations
+      const additionalErrors: string[] = []
+      const additionalWarnings: string[] = []
+      
+      // Check for consistent party and date within invoice group
+      const uniqueParties = new Set(groupRows.map(r => r.party_name))
+      const uniqueDates = new Set(groupRows.map(r => r.invoice_date))
+      
+      if (uniqueParties.size > 1) {
+        additionalErrors.push(`Multiple parties in invoice ${invoiceNo}: ${Array.from(uniqueParties).join(', ')}`)
+      }
+      
+      if (uniqueDates.size > 1) {
+        additionalWarnings.push(`Multiple dates in invoice ${invoiceNo}: ${Array.from(uniqueDates).join(', ')}`)
+      }
+      
+      // Show invoice grouping info
+      if (groupRows.length > 1) {
+        additionalWarnings.push(`Part of invoice ${invoiceNo} with ${groupRows.length} items`)
+      }
+
       return {
         id: `row-${index}`,
         original: { ...rowData },
         edited: { ...rowData },
-        errors: validation.errors,
-        warnings: validation.warnings,
+        errors: [...validation.errors, ...additionalErrors],
+        warnings: [...validation.warnings, ...additionalWarnings],
         isEditing: false,
-        isValid: validation.isValid
+        isValid: validation.isValid && additionalErrors.length === 0
       }
     })
 
@@ -439,26 +477,39 @@ export default function SalesBulkUploadDialog({
       const client = getSupabaseClient()
       if (!client) throw new Error("Service unavailable")
 
+      // Group valid rows by invoice number
+      const invoiceGroups = new Map<string, any[]>()
+      validRows.forEach((row, index) => {
+        const rowData = row.edited
+        const invoiceNo = rowData.invoice_number || rowData.invoice_no || `auto-${index}`
+        if (!invoiceGroups.has(invoiceNo)) {
+          invoiceGroups.set(invoiceNo, [])
+        }
+        invoiceGroups.get(invoiceNo)!.push(rowData)
+      })
+
       let imported = 0
+      let totalInvoices = invoiceGroups.size
       const errors: Array<{row: number, error: string, data: any}> = []
 
-      for (let i = 0; i < validRows.length; i++) {
-        const row = validRows[i]
-        setImportProgress((i / validRows.length) * 90)
+      let invoiceIndex = 0
+      for (const [invoiceNo, invoiceRows] of invoiceGroups) {
+        setImportProgress((invoiceIndex / totalInvoices) * 90)
 
         try {
-          const rowData = row.edited
-
+          // All rows in this group should have the same party and date
+          const firstRow = invoiceRows[0]
+          
           // Find or create party
           let selectedParty = parties.find(p => 
-            p.name.toLowerCase() === rowData.party_name.toLowerCase()
+            p.name.toLowerCase() === firstRow.party_name.toLowerCase()
           )
           
           if (!selectedParty) {
             // Create new party if it doesn't exist
             const partyData = {
               business_id: businessId,
-              name: rowData.party_name,
+              name: firstRow.party_name,
               address: '', // Will be filled later from party master
               city: '', // Will be filled later from party master
               state: '', // Will be filled later from party master
@@ -477,76 +528,88 @@ export default function SalesBulkUploadDialog({
             selectedParty = newParty
           }
 
-          // Find or create item
-          let selectedItem = items.find(i => 
-            i.name.toLowerCase() === rowData.item_name.toLowerCase()
-          )
+          // Process all items for this invoice
+          const invoiceItems: any[] = []
+          let totalSubtotal = 0
+          let totalTax = 0
 
-          if (!selectedItem) {
-            // Create new item if it doesn't exist
-            const itemData = {
-              business_id: businessId,
-              name: rowData.item_name,
-              code: `ITEM-${Date.now().toString().slice(-6)}`,
-              hsn_code: '',
-              sales_price: Number(rowData.rate) || 0,
-              purchase_price: Number(rowData.rate) * 0.8 || 0,
-              unit: 'Pcs',
-              gst_percent: 18,
-              opening_stock: 0
+          for (const rowData of invoiceRows) {
+            // Find or create item
+            let selectedItem = items.find(i => 
+              i.name.toLowerCase() === rowData.item_name.toLowerCase()
+            )
+
+            if (!selectedItem) {
+              // Create new item if it doesn't exist
+              const itemData = {
+                business_id: businessId,
+                name: rowData.item_name,
+                code: `ITEM-${Date.now().toString().slice(-6)}`,
+                hsn_code: '',
+                sales_price: Number(rowData.rate) || 0,
+                purchase_price: Number(rowData.rate) * 0.8 || 0,
+                unit: 'Pcs',
+                gst_percent: 18,
+                opening_stock: 0
+              }
+
+              const { data: newItem, error: itemError } = await client
+                .from('items')
+                .insert(itemData)
+                .select()
+                .single()
+
+              if (itemError) throw itemError
+              selectedItem = newItem
             }
 
-            const { data: newItem, error: itemError } = await client
-              .from('items')
-              .insert(itemData)
-              .select()
-              .single()
+            // Calculate amounts for this item
+            const quantity = Number(rowData.quantity) || 1
+            const rate = Number(rowData.rate) || 0
+            const itemSubtotal = quantity * rate
+            const gstPercent = selectedItem.gst_percent || 18
+            const itemTax = (itemSubtotal * gstPercent) / 100
 
-            if (itemError) throw itemError
-            selectedItem = newItem
+            // Add to invoice items
+            invoiceItems.push({
+              id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              item_id: selectedItem.id,
+              item_name: selectedItem.name,
+              item_code: selectedItem.code || '',
+              hsn: selectedItem.hsn_code || '',
+              qty: quantity,
+              rate: rate,
+              unit: selectedItem.unit || 'Pcs',
+              gst_percent: gstPercent,
+              tax_amount: itemTax,
+              total: itemSubtotal
+            })
+
+            totalSubtotal += itemSubtotal
+            totalTax += itemTax
           }
 
-          // Create sales invoice
-          const quantity = Number(rowData.quantity) || 1
-          const rate = Number(rowData.rate) || 0
-          const subtotal = quantity * rate
-          const gstPercent = selectedItem.gst_percent || 18
-          const gstAmount = (subtotal * gstPercent) / 100
-          const total = subtotal + gstAmount
+          // Generate invoice number if auto-generated
+          const finalInvoiceNo = invoiceNo.startsWith('auto-') 
+            ? await generateInvoiceNumber(client, businessId) 
+            : invoiceNo
 
-          // Create invoice items in the format expected by sales-entry
-          const invoiceItems = [{
-            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            item_id: selectedItem.id,
-            item_name: selectedItem.name,
-            item_code: selectedItem.code || '',
-            hsn: selectedItem.hsn_code || '',
-            qty: quantity,
-            rate: rate,
-            unit: selectedItem.unit || 'Pcs',
-            gst_percent: gstPercent,
-            tax_amount: gstAmount,
-            total: subtotal
-          }]
-
-          // Generate invoice number if not provided
-          const invoiceNumber = rowData.invoice_number || rowData.invoice_no || await generateInvoiceNumber(client, businessId)
-
+          // Create the invoice with all items
           const invoiceData = {
             business_id: businessId,
-            invoice_no: invoiceNumber,
-            date: rowData.invoice_date || new Date().toISOString().split('T')[0],
+            invoice_no: finalInvoiceNo,
+            date: firstRow.invoice_date || new Date().toISOString().split('T')[0],
             party_id: selectedParty.id,
             party_name: selectedParty.name,
             gstin: selectedParty.gstin || '',
             state: selectedParty.state || '',
             address: selectedParty.address || '',
             items: invoiceItems,
-            total_tax: gstAmount,
+            total_tax: totalTax,
             round_off: 0,
-            net_total: total,
+            net_total: totalSubtotal + totalTax,
             payment_received: 0, // Remove payment tracking from bulk upload
-            balance_due: total, // Full amount is due since no payment
+            balance_due: totalSubtotal + totalTax, // Full amount is due since no payment
             type: "sales" as const,
           }
 
@@ -561,31 +624,40 @@ export default function SalesBulkUploadDialog({
           imported++
 
         } catch (error: any) {
-          console.error(`Error importing row ${i + 1}:`, error)
+          console.error(`Error importing invoice ${invoiceNo}:`, error)
           const errorMessage = error?.message || error?.details || error?.hint || 'Unknown error occurred'
           
           // Handle specific duplicate invoice number error
           let displayError = errorMessage
           if (errorMessage.includes('duplicate key value violates unique constraint') && errorMessage.includes('invoices_business_id_invoice_no_key')) {
-            displayError = `Duplicate invoice number "${row.edited.invoice_no || 'auto-generated'}" already exists`
+            displayError = `Duplicate invoice number "${invoiceNo}" already exists`
           }
           
+          // Add error for all rows in this invoice group
+          const invoiceRowData = invoiceGroups.get(invoiceNo) || []
           errors.push({
-            row: i + 1,
+            row: invoiceIndex + 1,
             error: displayError,
-            data: row.edited
+            data: { 
+              invoice_no: invoiceNo,
+              party_name: invoiceRowData[0]?.party_name,
+              items_count: invoiceRowData.length,
+              total_amount: invoiceRowData.reduce((sum, row) => sum + (Number(row.total_amount) || 0), 0)
+            }
           })
         }
+
+        invoiceIndex++
       }
 
       setImportProgress(100)
       setImportErrors(errors)
-      setImportResults({ imported, total: validRows.length })
+      setImportResults({ imported, total: totalInvoices })
 
       if (imported > 0) {
         toast({
           title: "Import Completed",
-          description: `Successfully imported ${imported} out of ${validRows.length} sales entries.`,
+          description: `Successfully imported ${imported} out of ${totalInvoices} invoices (${validRows.length} items total).`,
         })
         
         // If no errors, close dialog and reset
@@ -608,7 +680,7 @@ export default function SalesBulkUploadDialog({
         setCurrentStep('results')
         toast({
           title: "Import Failed",
-          description: "No entries were imported successfully. Please check the errors below.",
+          description: "No invoices were imported successfully. Please check the errors below.",
           variant: "destructive"
         })
       }
@@ -633,6 +705,8 @@ export default function SalesBulkUploadDialog({
         <ul className="text-sm text-blue-800 space-y-1">
           <li>• Download the template CSV file below</li>
           <li>• Fill in your sales data following the column format</li>
+          <li>• <strong>Multiple items per invoice:</strong> Use the same invoice number for multiple rows to create multi-item invoices</li>
+          <li>• All rows with the same invoice number must have the same party name and date</li>
           <li>• New parties and items will be automatically created if they don't exist</li>
           <li>• Party address and city will be fetched from party master data</li>
           <li>• Payment tracking is managed separately through bank accounts</li>
@@ -707,14 +781,27 @@ export default function SalesBulkUploadDialog({
   const renderReviewStep = () => {
     if (!reviewData) return null
 
+    // Calculate unique invoices from rows
+    const invoiceNumbers = new Set()
+    reviewData.rows.forEach(row => {
+      const invoiceNo = row.edited.invoice_number || row.edited.invoice_no || `auto-${row.id.split('-')[1]}`
+      invoiceNumbers.add(invoiceNo)
+    })
+
     return (
       <div className="space-y-4">
         {/* Summary */}
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-5 gap-4">
           <Card>
             <CardContent className="p-4">
               <div className="text-2xl font-bold">{reviewData.totalRows}</div>
-              <div className="text-sm text-gray-500">Total Rows</div>
+              <div className="text-sm text-gray-500">Total Items</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold text-blue-600">{invoiceNumbers.size}</div>
+              <div className="text-sm text-gray-500">Invoices</div>
             </CardContent>
           </Card>
           <Card>
@@ -954,7 +1041,21 @@ export default function SalesBulkUploadDialog({
             disabled={reviewData.validRows === 0}
             className="bg-green-600 hover:bg-green-700"
           >
-            Import {reviewData.validRows} Valid Rows
+            Import {(() => {
+              const invoiceNumbers = new Set()
+              reviewData.rows.filter(row => row.isValid).forEach(row => {
+                const invoiceNo = row.edited.invoice_number || row.edited.invoice_no || `auto-${row.id.split('-')[1]}`
+                invoiceNumbers.add(invoiceNo)
+              })
+              return invoiceNumbers.size
+            })()} Invoice{(() => {
+              const invoiceNumbers = new Set()
+              reviewData.rows.filter(row => row.isValid).forEach(row => {
+                const invoiceNo = row.edited.invoice_number || row.edited.invoice_no || `auto-${row.id.split('-')[1]}`
+                invoiceNumbers.add(invoiceNo)
+              })
+              return invoiceNumbers.size === 1 ? '' : 's'
+            })()} ({reviewData.validRows} Items)
           </Button>
         </div>
       </div>
@@ -1041,11 +1142,11 @@ export default function SalesBulkUploadDialog({
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-16">Row</TableHead>
+                      <TableHead className="w-16">Invoice</TableHead>
                       <TableHead>Party Name</TableHead>
                       <TableHead>Invoice No</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Amount</TableHead>
+                      <TableHead>Items Count</TableHead>
+                      <TableHead>Total Amount</TableHead>
                       <TableHead>Error</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1059,8 +1160,10 @@ export default function SalesBulkUploadDialog({
                             <Badge variant="outline" className="text-xs">Auto-generated</Badge>
                           )}
                         </TableCell>
-                        <TableCell>{error.data.date}</TableCell>
-                        <TableCell className="font-mono">₹{error.data.total}</TableCell>
+                        <TableCell className="text-center">
+                          {error.data.items_count || 1} item{(error.data.items_count || 1) > 1 ? 's' : ''}
+                        </TableCell>
+                        <TableCell className="font-mono">₹{error.data.total_amount || error.data.total}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
