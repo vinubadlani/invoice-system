@@ -60,13 +60,22 @@ export default function SalesBulkUploadDialog({
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [importing, setImporting] = useState(false)
   const [importProgress, setImportProgress] = useState(0)
-  const [importErrors, setImportErrors] = useState<Array<{row: number, error: string, data: any}>>([])
+  const [importErrors, setImportErrors] = useState<Array<{row: number, error: string, category?: string, solution?: string, data: any}>>([])
   const [importResults, setImportResults] = useState<{imported: number, total: number} | null>(null)
   const [showCreatePartyDialog, setShowCreatePartyDialog] = useState(false)
   const [showCreateItemDialog, setShowCreateItemDialog] = useState(false)
   const [newPartyData, setNewPartyData] = useState({ name: '', gstin: '', address: '', city: '', state: '' })
   const [newItemData, setNewItemData] = useState({ name: '', hsn_code: '', sales_price: 0, unit: 'Pcs', gst_percent: 18 })
   const { toast } = useToast()
+
+  // Debug data availability
+  console.log('SalesBulkUploadDialog - Data available:', {
+    partiesCount: parties.length,
+    itemsCount: items.length,
+    businessId,
+    parties: parties.slice(0, 3), // Show first 3 parties for debugging
+    items: items.slice(0, 3) // Show first 3 items for debugging
+  })
 
   const downloadSalesTemplate = () => {
     const csvContent = "invoice_number,invoice_date,party_name,item_name,quantity,rate,amount,gst_amount,total_amount,notes\n"
@@ -89,51 +98,105 @@ export default function SalesBulkUploadDialog({
     const errors: string[] = []
     const warnings: string[] = []
 
-    // Required field validation
+    // Required field validation with specific error messages
     if (!rowData.invoice_number && !rowData.invoice_no) {
-      warnings.push("Invoice number missing - will auto-generate")
+      warnings.push("⚠️ Invoice number missing - System will auto-generate invoice number")
     }
-    if (!rowData.party_name) {
-      errors.push("Party name is required")
+    
+    if (!rowData.party_name || rowData.party_name.trim() === '') {
+      errors.push("❌ Party name is required - Please provide customer/party name")
     }
-    if (!rowData.item_name) {
-      errors.push("Item name is required")
+    
+    if (!rowData.item_name || rowData.item_name.trim() === '') {
+      errors.push("❌ Item name is required - Please provide product/service name")
     }
+    
     if (!rowData.quantity || isNaN(Number(rowData.quantity)) || Number(rowData.quantity) <= 0) {
-      errors.push("Valid quantity is required")
+      errors.push("❌ Valid quantity is required - Must be a positive number greater than 0")
     }
+    
     if (!rowData.rate || isNaN(Number(rowData.rate)) || Number(rowData.rate) <= 0) {
-      errors.push("Valid rate is required")
+      errors.push("❌ Valid rate/price is required - Must be a positive number greater than 0")
     }
 
-    // Party validation
+    // Party validation with detailed messages
     const partyExists = parties.some(p => p.name.toLowerCase() === rowData.party_name?.toLowerCase())
     if (rowData.party_name && !partyExists) {
-      warnings.push(`Party "${rowData.party_name}" not found - will need to create new party`)
+      warnings.push(`🆕 Party "${rowData.party_name}" not found in database - New party will be created automatically`)
     }
 
-    // Item validation
+    // Item validation with detailed messages  
     const itemExists = items.some(i => i.name.toLowerCase() === rowData.item_name?.toLowerCase())
     if (rowData.item_name && !itemExists) {
-      warnings.push(`Item "${rowData.item_name}" not found - will need to create new item`)
+      warnings.push(`🆕 Item "${rowData.item_name}" not found in database - New item will be created automatically`)
     }
 
-    // Date validation
+    // Date validation with specific error messages
     if (rowData.invoice_date) {
       const date = new Date(rowData.invoice_date)
       if (isNaN(date.getTime())) {
-        errors.push("Invalid invoice date format")
+        errors.push("❌ Invalid invoice date format - Use YYYY-MM-DD format (e.g., 2024-01-15)")
+      } else {
+        // Check if date is too far in future
+        const today = new Date()
+        const oneYearFromNow = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate())
+        if (date > oneYearFromNow) {
+          warnings.push("⚠️ Invoice date is more than 1 year in the future - Please verify the date")
+        }
+        
+        // Check if date is too far in past
+        const twoYearsAgo = new Date(today.getFullYear() - 2, today.getMonth(), today.getDate())
+        if (date < twoYearsAgo) {
+          warnings.push("⚠️ Invoice date is more than 2 years old - Please verify the date")
+        }
       }
+    } else {
+      warnings.push("⚠️ Invoice date missing - System will use today's date")
     }
 
-    // Amount validation
+    // Amount validation with detailed calculations
     const quantity = Number(rowData.quantity) || 0
     const rate = Number(rowData.rate) || 0
     const expectedAmount = quantity * rate
     const providedAmount = Number(rowData.amount) || 0
     
     if (providedAmount && Math.abs(expectedAmount - providedAmount) > 0.01) {
-      warnings.push(`Amount mismatch: calculated ${expectedAmount}, provided ${providedAmount}`)
+      warnings.push(`🧮 Amount mismatch - Calculated: ₹${expectedAmount.toFixed(2)}, Provided: ₹${providedAmount.toFixed(2)} - Will use calculated amount`)
+    }
+
+    // GST validation
+    if (rowData.gst_amount) {
+      const gstAmount = Number(rowData.gst_amount) || 0
+      // Estimate GST percentage (common rates: 0, 5, 12, 18, 28)
+      const estimatedGstPercent = Math.round((gstAmount / expectedAmount) * 100)
+      const commonGstRates = [0, 5, 12, 18, 28]
+      const closestRate = commonGstRates.reduce((prev, curr) => 
+        Math.abs(curr - estimatedGstPercent) < Math.abs(prev - estimatedGstPercent) ? curr : prev
+      )
+      
+      if (Math.abs(estimatedGstPercent - closestRate) > 2) {
+        warnings.push(`🧮 GST amount seems unusual - ${estimatedGstPercent}% GST rate calculated from provided amount`)
+      }
+    }
+
+    // Total amount validation
+    if (rowData.total_amount) {
+      const totalAmount = Number(rowData.total_amount) || 0
+      const gstAmount = Number(rowData.gst_amount) || 0
+      const expectedTotal = expectedAmount + gstAmount
+      
+      if (Math.abs(totalAmount - expectedTotal) > 0.01) {
+        warnings.push(`🧮 Total amount mismatch - Calculated: ₹${expectedTotal.toFixed(2)}, Provided: ₹${totalAmount.toFixed(2)}`)
+      }
+    }
+
+    // Text field validation
+    if (rowData.party_name && rowData.party_name.length > 100) {
+      warnings.push("⚠️ Party name is very long - Consider using a shorter name")
+    }
+    
+    if (rowData.item_name && rowData.item_name.length > 100) {
+      warnings.push("⚠️ Item name is very long - Consider using a shorter name")
     }
 
     return {
@@ -163,7 +226,7 @@ export default function SalesBulkUploadDialog({
       // Validate individual row
       const validation = validateRow(rowData)
       
-      // Add invoice-specific validations
+      // Add invoice-specific validations with detailed messages
       const additionalErrors: string[] = []
       const additionalWarnings: string[] = []
       
@@ -172,16 +235,24 @@ export default function SalesBulkUploadDialog({
       const uniqueDates = new Set(groupRows.map(r => r.invoice_date))
       
       if (uniqueParties.size > 1) {
-        additionalErrors.push(`Multiple parties in invoice ${invoiceNo}: ${Array.from(uniqueParties).join(', ')}`)
+        additionalErrors.push(`🚫 Multiple parties in invoice ${invoiceNo} - All items in same invoice must have same party. Found: ${Array.from(uniqueParties).join(', ')}`)
       }
       
       if (uniqueDates.size > 1) {
-        additionalWarnings.push(`Multiple dates in invoice ${invoiceNo}: ${Array.from(uniqueDates).join(', ')}`)
+        additionalWarnings.push(`📅 Multiple dates in invoice ${invoiceNo} - All items should have same date. Found dates: ${Array.from(uniqueDates).join(', ')}`)
       }
       
-      // Show invoice grouping info
+      // Show invoice grouping info with details
       if (groupRows.length > 1) {
-        additionalWarnings.push(`Part of invoice ${invoiceNo} with ${groupRows.length} items`)
+        const totalInvoiceAmount = groupRows.reduce((sum, r) => sum + (Number(r.quantity) * Number(r.rate)), 0)
+        additionalWarnings.push(`📦 Multi-item invoice ${invoiceNo} - Contains ${groupRows.length} items with total amount ₹${totalInvoiceAmount.toFixed(2)}`)
+      }
+
+      // Check for duplicate items within the same invoice
+      const itemNames = groupRows.map(r => r.item_name?.toLowerCase()).filter(Boolean)
+      const duplicateItems = itemNames.filter((item, index) => itemNames.indexOf(item) !== index)
+      if (duplicateItems.length > 0) {
+        additionalWarnings.push(`🔄 Duplicate items in invoice ${invoiceNo} - Items: ${[...new Set(duplicateItems)].join(', ')} appear multiple times`)
       }
 
       return {
@@ -237,11 +308,17 @@ export default function SalesBulkUploadDialog({
       setUploadProgress(50)
 
       if (parseResult.errors.length > 0) {
+        const errorDetails = parseResult.errors.map(error => 
+          `Row ${error.row || 'Unknown'}: ${error.message}`
+        ).join('\n')
+        
         toast({
-          title: "CSV Parsing Error",
-          description: parseResult.errors[0].message,
+          title: "CSV Parsing Errors",
+          description: `Found ${parseResult.errors.length} parsing error(s):\n${errorDetails}`,
           variant: "destructive"
         })
+        
+        console.error("CSV parsing errors:", parseResult.errors)
         return
       }
       
@@ -490,7 +567,7 @@ export default function SalesBulkUploadDialog({
 
       let imported = 0
       let totalInvoices = invoiceGroups.size
-      const errors: Array<{row: number, error: string, data: any}> = []
+      const errors: Array<{row: number, error: string, category?: string, solution?: string, data: any}> = []
 
       let invoiceIndex = 0
       for (const [invoiceNo, invoiceRows] of invoiceGroups) {
@@ -625,24 +702,46 @@ export default function SalesBulkUploadDialog({
 
         } catch (error: any) {
           console.error(`Error importing invoice ${invoiceNo}:`, error)
-          const errorMessage = error?.message || error?.details || error?.hint || 'Unknown error occurred'
+          let errorMessage = error?.message || error?.details || error?.hint || 'Unknown error occurred'
+          let errorCategory = 'Unknown Error'
+          let solution = 'Please check the data and try again'
           
-          // Handle specific duplicate invoice number error
-          let displayError = errorMessage
+          // Categorize errors and provide specific solutions
           if (errorMessage.includes('duplicate key value violates unique constraint') && errorMessage.includes('invoices_business_id_invoice_no_key')) {
-            displayError = `Duplicate invoice number "${invoiceNo}" already exists`
+            errorCategory = 'Duplicate Invoice Number'
+            errorMessage = `Invoice number "${invoiceNo}" already exists in your database`
+            solution = 'Use a different invoice number or check existing invoices'
+          } else if (errorMessage.includes('foreign key violation') || errorMessage.includes('violates foreign key constraint')) {
+            errorCategory = 'Data Reference Error'
+            solution = 'Check that all party and item references are valid'
+          } else if (errorMessage.includes('null value in column') || errorMessage.includes('violates not-null constraint')) {
+            errorCategory = 'Missing Required Data'
+            const nullColumn = errorMessage.match(/column "([^"]+)"/)?.[1] || 'unknown field'
+            errorMessage = `Required field "${nullColumn}" is missing or empty`
+            solution = `Please provide a value for ${nullColumn}`
+          } else if (errorMessage.includes('invalid input syntax') || errorMessage.includes('invalid text representation')) {
+            errorCategory = 'Data Format Error'
+            solution = 'Check that numbers are valid and dates are in YYYY-MM-DD format'
+          } else if (errorMessage.includes('permission denied') || errorMessage.includes('insufficient privilege')) {
+            errorCategory = 'Permission Error'
+            solution = 'Contact your administrator for database access permissions'
+          } else if (errorMessage.includes('timeout') || errorMessage.includes('connection')) {
+            errorCategory = 'Connection Error'
+            solution = 'Check your internet connection and try again'
           }
           
-          // Add error for all rows in this invoice group
+          // Add error for all rows in this invoice group with enhanced details
           const invoiceRowData = invoiceGroups.get(invoiceNo) || []
           errors.push({
             row: invoiceIndex + 1,
-            error: displayError,
+            error: errorMessage,
+            category: errorCategory,
+            solution: solution,
             data: { 
               invoice_no: invoiceNo,
               party_name: invoiceRowData[0]?.party_name,
               items_count: invoiceRowData.length,
-              total_amount: invoiceRowData.reduce((sum, row) => sum + (Number(row.total_amount) || 0), 0)
+              total_amount: invoiceRowData.reduce((sum, row) => sum + (Number(row.total_amount) || Number(row.quantity) * Number(row.rate) || 0), 0)
             }
           })
         }
@@ -702,6 +801,17 @@ export default function SalesBulkUploadDialog({
       {/* Instructions */}
       <div className="bg-blue-50 p-4 rounded-lg">
         <h4 className="font-medium text-blue-900 mb-2">Instructions:</h4>
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-sm text-blue-800">Available Data:</span>
+          <div className="flex gap-4 text-xs">
+            <span className="bg-blue-100 px-2 py-1 rounded">
+              Parties: {parties.length}
+            </span>
+            <span className="bg-blue-100 px-2 py-1 rounded">
+              Items: {items.length}
+            </span>
+          </div>
+        </div>
         <ul className="text-sm text-blue-800 space-y-1">
           <li>• Download the template CSV file below</li>
           <li>• Fill in your sales data following the column format</li>
@@ -711,6 +821,11 @@ export default function SalesBulkUploadDialog({
           <li>• Party address and city will be fetched from party master data</li>
           <li>• Payment tracking is managed separately through bank accounts</li>
           <li>• Upload the completed CSV file for review</li>
+          {(parties.length === 0 || items.length === 0) && (
+            <li className="font-medium text-red-600">
+              ⚠️ {parties.length === 0 ? 'No parties' : ''} {parties.length === 0 && items.length === 0 ? ' and ' : ''} {items.length === 0 ? 'No items' : ''} found - Please add some parties and items first, or they will be auto-created during import
+            </li>
+          )}
         </ul>
       </div>
 
@@ -893,13 +1008,36 @@ export default function SalesBulkUploadDialog({
                           )}
                         </TableCell>
                         <TableCell className="w-16">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => toggleRowEdit(row.id)}
-                          >
-                            {row.isEditing ? <Check className="h-3 w-3" /> : <Edit2 className="h-3 w-3" />}
-                          </Button>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleRowEdit(row.id)}
+                            >
+                              {row.isEditing ? <Check className="h-3 w-3" /> : <Edit2 className="h-3 w-3" />}
+                            </Button>
+                            {(row.errors.length > 0 || row.warnings.length > 0) && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  const allMessages = [
+                                    ...row.errors.map(e => `❌ Error: ${e}`),
+                                    ...row.warnings.map(w => `⚠️ Warning: ${w}`)
+                                  ]
+                                  toast({
+                                    title: `Row ${index + 1} Details`,
+                                    description: allMessages.join('\n\n'),
+                                    duration: 10000,
+                                  })
+                                }}
+                                title="👁️ Click to view all errors and warnings for this row"
+                                className="hover:bg-blue-50"
+                              >
+                                <Eye className="h-3 w-3 text-blue-600" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -932,11 +1070,17 @@ export default function SalesBulkUploadDialog({
                                       <SelectValue placeholder="Select party" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      {parties.map(party => (
-                                        <SelectItem key={party.id} value={party.name}>
-                                          {party.name}
+                                      {parties.length === 0 ? (
+                                        <SelectItem value="" disabled>
+                                          No parties available - Create one first
                                         </SelectItem>
-                                      ))}
+                                      ) : (
+                                        parties.map(party => (
+                                          <SelectItem key={party.id} value={party.name}>
+                                            {party.name}
+                                          </SelectItem>
+                                        ))
+                                      )}
                                     </SelectContent>
                                   </Select>
                                   <Input
@@ -970,11 +1114,17 @@ export default function SalesBulkUploadDialog({
                                       <SelectValue placeholder="Select item" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      {items.map(item => (
-                                        <SelectItem key={item.id} value={item.name}>
-                                          {item.name} - ₹{item.sales_price}
+                                      {items.length === 0 ? (
+                                        <SelectItem value="" disabled>
+                                          No items available - Create one first
                                         </SelectItem>
-                                      ))}
+                                      ) : (
+                                        items.map(item => (
+                                          <SelectItem key={item.id} value={item.name}>
+                                            {item.name} - ₹{item.sales_price}
+                                          </SelectItem>
+                                        ))
+                                      )}
                                     </SelectContent>
                                   </Select>
                                   <Input
@@ -1008,14 +1158,39 @@ export default function SalesBulkUploadDialog({
                             ) : (
                               <div className="text-xs">
                                 {row.edited[header] || '-'}
-                                {row.errors.some(e => e.toLowerCase().includes(header)) && (
-                                  <div className="text-red-600 text-xs mt-1">
-                                    {row.errors.find(e => e.toLowerCase().includes(header))}
+                                {row.errors.some(e => e.toLowerCase().includes(header.replace('_', ' '))) && (
+                                  <div className="text-red-600 text-xs mt-1 p-2 bg-red-50 rounded border-l-2 border-red-200">
+                                    <div className="font-medium">❌ Error:</div>
+                                    {row.errors.filter(e => e.toLowerCase().includes(header.replace('_', ' '))).map((error, idx) => (
+                                      <div key={idx} className="mt-1">{error}</div>
+                                    ))}
                                   </div>
                                 )}
-                                {row.warnings.some(w => w.toLowerCase().includes(header)) && (
-                                  <div className="text-yellow-600 text-xs mt-1">
-                                    {row.warnings.find(w => w.toLowerCase().includes(header))}
+                                {row.warnings.some(w => w.toLowerCase().includes(header.replace('_', ' '))) && (
+                                  <div className="text-yellow-700 text-xs mt-1 p-2 bg-yellow-50 rounded border-l-2 border-yellow-200">
+                                    <div className="font-medium">⚠️ Warning:</div>
+                                    {row.warnings.filter(w => w.toLowerCase().includes(header.replace('_', ' '))).map((warning, idx) => (
+                                      <div key={idx} className="mt-1">{warning}</div>
+                                    ))}
+                                  </div>
+                                )}
+                                {/* Show all errors and warnings for this row if not field-specific */}
+                                {!row.errors.some(e => e.toLowerCase().includes(header.replace('_', ' '))) && 
+                                 !row.warnings.some(w => w.toLowerCase().includes(header.replace('_', ' '))) && 
+                                 header === 'party_name' && (row.errors.length > 0 || row.warnings.length > 0) && (
+                                  <div className="mt-1 space-y-1">
+                                    {row.errors.filter(e => !reviewData.headers.some(h => e.toLowerCase().includes(h.replace('_', ' ')))).map((error, idx) => (
+                                      <div key={`error-${idx}`} className="text-red-600 text-xs p-2 bg-red-50 rounded border-l-2 border-red-200">
+                                        <div className="font-medium">❌ Row Error:</div>
+                                        <div>{error}</div>
+                                      </div>
+                                    ))}
+                                    {row.warnings.filter(w => !reviewData.headers.some(h => w.toLowerCase().includes(h.replace('_', ' ')))).map((warning, idx) => (
+                                      <div key={`warning-${idx}`} className="text-yellow-700 text-xs p-2 bg-yellow-50 rounded border-l-2 border-yellow-200">
+                                        <div className="font-medium">⚠️ Row Warning:</div>
+                                        <div>{warning}</div>
+                                      </div>
+                                    ))}
                                   </div>
                                 )}
                               </div>
@@ -1143,32 +1318,73 @@ export default function SalesBulkUploadDialog({
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-16">Invoice</TableHead>
+                      <TableHead>Error Type</TableHead>
                       <TableHead>Party Name</TableHead>
                       <TableHead>Invoice No</TableHead>
-                      <TableHead>Items Count</TableHead>
-                      <TableHead>Total Amount</TableHead>
-                      <TableHead>Error</TableHead>
+                      <TableHead>Items</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Error Details</TableHead>
+                      <TableHead>Solution</TableHead>
+                      <TableHead className="w-16">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {importErrors.map((error, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-mono">{error.row}</TableCell>
-                        <TableCell>{error.data.party_name}</TableCell>
+                      <TableRow key={index} className="group hover:bg-gray-50">
+                        <TableCell className="font-mono text-center">{error.row}</TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={
+                              error.category?.includes('Duplicate') ? 'destructive' :
+                              error.category?.includes('Missing') ? 'secondary' :
+                              error.category?.includes('Format') ? 'outline' :
+                              'default'
+                            }
+                            className="text-xs"
+                          >
+                            {error.category || 'Error'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-medium">{error.data.party_name}</TableCell>
                         <TableCell className="font-mono">
                           {error.data.invoice_no || (
                             <Badge variant="outline" className="text-xs">Auto-generated</Badge>
                           )}
                         </TableCell>
                         <TableCell className="text-center">
-                          {error.data.items_count || 1} item{(error.data.items_count || 1) > 1 ? 's' : ''}
+                          <Badge variant="outline" className="text-xs">
+                            {error.data.items_count || 1} item{(error.data.items_count || 1) > 1 ? 's' : ''}
+                          </Badge>
                         </TableCell>
-                        <TableCell className="font-mono">₹{error.data.total_amount || error.data.total}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
-                            <span className="text-sm text-red-600 break-words">{error.error}</span>
+                        <TableCell className="font-mono">₹{error.data.total_amount?.toFixed(2) || '0.00'}</TableCell>
+                        <TableCell className="max-w-xs">
+                          <div className="flex items-start gap-2">
+                            <XCircle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+                            <span className="text-sm text-red-600 break-words leading-tight">{error.error}</span>
                           </div>
+                        </TableCell>
+                        <TableCell className="max-w-xs">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                            <span className="text-sm text-blue-600 break-words leading-tight">{error.solution || 'Please check the data and try again'}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              toast({
+                                title: `Import Error Details - Invoice ${error.row}`,
+                                description: `🔍 Full Error Details:\n\n❌ Error: ${error.error}\n\n📊 Category: ${error.category || 'Unknown'}\n\n💡 Solution: ${error.solution || 'Please check the data and try again'}\n\n📄 Data Details:\n• Party: ${error.data.party_name}\n• Invoice: ${error.data.invoice_no}\n• Items: ${error.data.items_count}\n• Amount: ₹${error.data.total_amount?.toFixed(2) || '0.00'}`,
+                                duration: 15000,
+                              })
+                            }}
+                            title="👁️ Click to view detailed error information"
+                            className="hover:bg-blue-50"
+                          >
+                            <Eye className="h-3 w-3 text-blue-600" />
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1181,12 +1397,49 @@ export default function SalesBulkUploadDialog({
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              <strong>Common Solutions:</strong>
-              <ul className="mt-2 space-y-1 text-sm">
-                <li>• For duplicate invoice numbers: Remove duplicate entries or use different invoice numbers</li>
-                <li>• For party/item not found: Ensure party and item names match exactly with your database</li>
-                <li>• For validation errors: Check date formats, numeric values, and required fields</li>
-              </ul>
+              <div className="space-y-4">
+                <div>
+                  <strong>📊 Error Categories Summary:</strong>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
+                    {(() => {
+                      const categories = importErrors.reduce((acc, error) => {
+                        const category = error.category || 'Other'
+                        acc[category] = (acc[category] || 0) + 1
+                        return acc
+                      }, {} as Record<string, number>)
+                      
+                      return Object.entries(categories).map(([category, count]) => (
+                        <div key={category} className="bg-gray-50 p-2 rounded">
+                          <div className="font-medium text-sm">{category}</div>
+                          <div className="text-xs text-gray-600">{count} error{count > 1 ? 's' : ''}</div>
+                        </div>
+                      ))
+                    })()}
+                  </div>
+                </div>
+                
+                <div>
+                  <strong>🛠️ Common Solutions:</strong>
+                  <ul className="mt-2 space-y-1 text-sm">
+                    <li>• <strong>Duplicate Invoice Numbers:</strong> Use unique invoice numbers or let system auto-generate them</li>
+                    <li>• <strong>Missing Required Data:</strong> Ensure all required fields (party name, item name, quantity, rate) are filled</li>
+                    <li>• <strong>Data Format Errors:</strong> Use YYYY-MM-DD for dates, positive numbers for quantities and rates</li>
+                    <li>• <strong>Party/Item Not Found:</strong> Check spelling or let system create new entries automatically</li>
+                    <li>• <strong>Multiple Parties per Invoice:</strong> Each invoice should have only one party for all items</li>
+                  </ul>
+                </div>
+                
+                <div>
+                  <strong>💡 Tips for Success:</strong>
+                  <ul className="mt-2 space-y-1 text-sm text-blue-600">
+                    <li>• Download and use the provided CSV template</li>
+                    <li>• Group multiple items under same invoice number for multi-item invoices</li>
+                    <li>• Keep party and date consistent within each invoice</li>
+                    <li>• Verify calculated amounts match provided amounts</li>
+                    <li>• Test with a small batch first before uploading large files</li>
+                  </ul>
+                </div>
+              </div>
             </AlertDescription>
           </Alert>
         </div>

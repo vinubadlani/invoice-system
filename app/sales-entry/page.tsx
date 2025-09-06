@@ -104,7 +104,7 @@ export default function SalesEntry() {
   const [showBulkUpload, setShowBulkUpload] = useState(false)
 
   // Use optimized data fetching
-  const { fetchParties, fetchItems, fetchBusiness } = useOptimizedData()
+  const { fetchParties, fetchItems, fetchBusiness, clearAllCache } = useOptimizedData()
   const [parties, setParties] = useState<Party[]>([])
   const [items, setItems] = useState<Item[]>([])
   const [business, setBusiness] = useState<Business | null>(null)
@@ -140,6 +140,36 @@ export default function SalesEntry() {
       const businessData = JSON.parse(storedBusiness)
       setBusinessId(businessData.id)
       fetchData(businessData.id)
+    }
+  }, [])
+
+  // Direct fetch function for debugging
+  const fetchItemsDirectly = useCallback(async (businessId: string) => {
+    try {
+      const client = getSupabaseClient()
+      if (!client) {
+        console.error("Supabase client not available")
+        return []
+      }
+
+      console.log("Fetching items directly from database for businessId:", businessId)
+      
+      const { data, error } = await client
+        .from("items")
+        .select("id, name, code, hsn_code, gst_percent, sales_price, purchase_price, unit")
+        .eq("business_id", businessId)
+        .order("name")
+
+      if (error) {
+        console.error("Direct fetch error:", error)
+        return []
+      }
+      
+      console.log("Direct fetch result:", data?.length || 0, "items")
+      return data || []
+    } catch (error) {
+      console.error("Error in direct fetch:", error)
+      return []
     }
   }, [])
 
@@ -187,15 +217,45 @@ export default function SalesEntry() {
     } finally {
       setLoading(false)
     }
-  }, [fetchParties, fetchItems, fetchBusiness, generateInvoiceNo, editingInvoice, toast])
+  }, [fetchParties, fetchItems, fetchBusiness, clearAllCache, generateInvoiceNo, editingInvoice, toast])
 
-  // Optimized filtered items with debouncing
+  // Optimized filtered items with comprehensive search
   const filteredItems = useMemo(() => {
-    if (!itemSearchValue) return items.slice(0, 20) // Limit initial results
-    return items.filter(item => 
-      item.name.toLowerCase().includes(itemSearchValue.toLowerCase()) ||
-      item.code.toLowerCase().includes(itemSearchValue.toLowerCase())
-    ).slice(0, 20) // Limit search results
+    if (!itemSearchValue) {
+      return items // Show all items initially
+    }
+    
+    const searchTerm = itemSearchValue.toLowerCase().trim()
+    
+    const filtered = items.filter(item => {
+      // Search across multiple fields for better matching
+      const searchableFields = [
+        item.name || '',
+        item.code || '',
+        item.hsn_code || '',
+        // Also search by unit for convenience
+        item.unit || ''
+      ]
+      
+      const matches = searchableFields.some(field => 
+        field.toLowerCase().includes(searchTerm)
+      )
+      
+      // Debug specific search
+      if (searchTerm.includes('punarnava')) {
+        console.log('Searching for Punarnava:', {
+          itemName: item.name,
+          searchTerm,
+          searchableFields,
+          matches
+        })
+      }
+      
+      return matches
+    })
+    
+    console.log(`Search "${searchTerm}" found ${filtered.length} items from ${items.length} total`)
+    return filtered
   }, [items, itemSearchValue])
 
   // Optimized add item function
@@ -596,15 +656,46 @@ export default function SalesEntry() {
 
                 {/* Add Items Section */}
                 <div>
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <Plus className="h-5 w-5" />
-                    Add Items
-                  </h3>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                      <Plus className="h-5 w-5" />
+                      Add Items
+                    </h3>
+                    <div className="flex items-center gap-3">
+                      <div className="text-sm text-gray-600">
+                        {items.length} items available | {filteredItems.length} showing
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={async () => {
+                          console.log("Manual refresh triggered")
+                          clearAllCache()
+                          if (businessId) {
+                            // Try both cached and direct methods
+                            const directItems = await fetchItemsDirectly(businessId)
+                            console.log("Direct fetch returned:", directItems.length, "items")
+                            if (directItems.length > 0) {
+                              setItems(directItems as Item[])
+                            }
+                            fetchData(businessId)
+                          }
+                        }}
+                      >
+                        Refresh Items
+                      </Button>
+                    </div>
+                  </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 bg-gray-50 rounded-lg">
                     <div>
                       <Label className="text-sm font-medium">Item *</Label>
-                      <Popover open={itemSearchOpen} onOpenChange={setItemSearchOpen}>
+                      <Popover open={itemSearchOpen} onOpenChange={(open) => {
+                        setItemSearchOpen(open)
+                        if (open) {
+                          console.log('Dropdown opened. Available items:', items.map(i => i.name))
+                        }
+                      }}>
                         <PopoverTrigger asChild>
                           <Button
                             variant="outline"
@@ -618,20 +709,41 @@ export default function SalesEntry() {
                             <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-[300px] p-0">
-                          <Command>
+                        <PopoverContent className="w-[400px] p-0">
+                          <Command shouldFilter={false}>
                             <CommandInput 
-                              placeholder="Search items..." 
+                              placeholder="Search by name, code, HSN, or unit..." 
                               value={itemSearchValue}
                               onValueChange={setItemSearchValue}
                             />
                             <CommandList>
-                              <CommandEmpty>No item found.</CommandEmpty>
+                              <CommandEmpty>
+                                <div className="text-center py-4">
+                                  <p className="text-sm text-gray-500">No items found for "{itemSearchValue}"</p>
+                                  <p className="text-xs text-gray-400 mt-1">
+                                    Try searching by name, code, HSN, or unit
+                                  </p>
+                                  <p className="text-xs text-gray-400 mt-1">
+                                    Available: {items.length} items | Showing: {filteredItems.length} items
+                                  </p>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="mt-2"
+                                    onClick={() => {
+                                      clearAllCache()
+                                      fetchData(businessId)
+                                    }}
+                                  >
+                                    Refresh Items
+                                  </Button>
+                                </div>
+                              </CommandEmpty>
                               <CommandGroup>
                                 {filteredItems.map((item) => (
                                   <CommandItem
                                     key={item.id}
-                                    value={item.id}
+                                    value={item.name} // Use item name as value for Command search
                                     onSelect={() => {
                                       setCurrentItem(prev => ({ 
                                         ...prev, 
@@ -641,11 +753,24 @@ export default function SalesEntry() {
                                       setItemSearchOpen(false)
                                     }}
                                   >
-                                    <div className="flex flex-col">
-                                      <span className="font-medium">{item.name}</span>
-                                      <span className="text-xs text-gray-500">
-                                        {item.code} | ₹{item.sales_price} | {item.unit}
-                                      </span>
+                                    <div className="flex flex-col w-full">
+                                      <div className="flex justify-between items-start">
+                                        <span className="font-medium text-gray-900">{item.name}</span>
+                                        <span className="text-sm font-semibold text-green-600">₹{item.sales_price}</span>
+                                      </div>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                                          {item.code}
+                                        </span>
+                                        {item.hsn_code && (
+                                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                                            HSN: {item.hsn_code}
+                                          </span>
+                                        )}
+                                        <span className="text-xs text-gray-500">
+                                          {item.unit} | {item.gst_percent}% GST
+                                        </span>
+                                      </div>
                                     </div>
                                   </CommandItem>
                                 ))}

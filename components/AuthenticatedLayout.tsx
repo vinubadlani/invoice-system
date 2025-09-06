@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import SidebarNavigation from "@/components/SidebarNavigation"
 import LoginForm from "@/components/LoginForm"
 import BusinessSelector from "@/components/BusinessSelector"
+import { useSessionProtection } from "@/hooks/use-session-protection"
 
 import { Business } from "@/lib/types"
 
@@ -15,14 +16,28 @@ interface AuthenticatedLayoutProps {
 export default function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   const { user, loading } = useAuth()
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null)
+  
+  // Add session protection
+  const { isSessionValid } = useSessionProtection()
 
   useEffect(() => {
-    // Check if business is stored in localStorage
-    const storedBusiness = localStorage.getItem("selectedBusiness")
-    if (storedBusiness) {
-      setSelectedBusiness(JSON.parse(storedBusiness))
+    // Only load business if session is valid
+    if (user && isSessionValid) {
+      // Check if business is stored in localStorage
+      const storedBusiness = localStorage.getItem("selectedBusiness")
+      if (storedBusiness) {
+        try {
+          setSelectedBusiness(JSON.parse(storedBusiness))
+        } catch (error) {
+          console.warn('Invalid business data in localStorage:', error)
+          localStorage.removeItem("selectedBusiness")
+        }
+      }
+    } else if (!user) {
+      // Clear business selection if no user
+      setSelectedBusiness(null)
     }
-  }, [])
+  }, [user, isSessionValid])
 
   const handleBusinessSelect = (business: Business) => {
     setSelectedBusiness(business)

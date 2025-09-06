@@ -2,18 +2,29 @@ import { create } from 'zustand'
 import { persist, subscribeWithSelector } from 'zustand/middleware'
 import { getSupabaseClient, getCurrentUser, verifyBusinessOwnership } from '@/lib/supabase'
 
-// Enhanced cache with better performance
+// Enhanced cache with better performance and session management
 interface CacheItem<T> {
   data: T
   timestamp: number
   expiry: number
   loading?: boolean
+  userId?: string // Add user ID for session tracking
 }
 
 class OptimizedCache {
   private cache = new Map<string, CacheItem<any>>()
   private readonly DEFAULT_EXPIRY = 5 * 60 * 1000 // 5 minutes
   private readonly FAST_EXPIRY = 30 * 1000 // 30 seconds for frequently changing data
+  private currentUserId: string | null = null
+  
+  // Set current user for session management
+  setCurrentUser(userId: string | null): void {
+    if (this.currentUserId !== userId) {
+      console.log(`User session changed from ${this.currentUserId} to ${userId}`)
+      this.clearAllCache() // Clear cache when user changes
+      this.currentUserId = userId
+    }
+  }
   
   set<T>(key: string, data: T, customExpiry?: number): void {
     const expiry = customExpiry || this.DEFAULT_EXPIRY
@@ -21,13 +32,20 @@ class OptimizedCache {
       data,
       timestamp: Date.now(),
       expiry,
-      loading: false
+      loading: false,
+      userId: this.currentUserId || undefined
     })
   }
 
   get<T>(key: string): T | null {
     const item = this.cache.get(key)
     if (!item) return null
+    
+    // Check if item belongs to current user
+    if (item.userId && item.userId !== this.currentUserId) {
+      this.cache.delete(key)
+      return null
+    }
     
     if (Date.now() - item.timestamp > item.expiry) {
       this.cache.delete(key)
@@ -51,6 +69,12 @@ class OptimizedCache {
 
   clear(): void {
     this.cache.clear()
+  }
+
+  // Clear all cache (used when user changes)
+  clearAllCache(): void {
+    this.cache.clear()
+    console.log('All cache cleared due to user session change')
   }
 
   // Optimized preload critical data with timeout and fallbacks
@@ -209,7 +233,6 @@ class OptimizedCache {
         .select("id, name, code, hsn_code, gst_percent, sales_price, purchase_price, unit")
         .eq("business_id", businessId)
         .order("name")
-        .limit(200)
 
       if (error) throw error
       
@@ -447,7 +470,7 @@ export const useCacheStore = create<CacheStore>()(
   )
 )
 
-// Enhanced hook with better performance
+// Enhanced hook with better performance and session management
 export function useOptimizedData() {
   return {
     fetchParties: (businessId: string) => optimizedCache.fetchParties(businessId),
@@ -458,6 +481,8 @@ export function useOptimizedData() {
     preloadCriticalData: (businessId: string) => optimizedCache.preloadCriticalData(businessId),
     invalidateBusinessData: (businessId: string) => optimizedCache.invalidateBusinessData(businessId),
     updateBusiness: (businessId: string, businessData: any) => optimizedCache.updateBusiness(businessId, businessData),
-    clearCache: () => optimizedCache.clear()
+    clearCache: () => optimizedCache.clear(),
+    setCurrentUser: (userId: string | null) => optimizedCache.setCurrentUser(userId),
+    clearAllCache: () => optimizedCache.clearAllCache()
   }
 }

@@ -1,4 +1,5 @@
 import { getSupabaseClient } from "./supabase"
+import { sessionManager } from "./session-manager"
 
 export const ADMIN_ACCOUNT = {
   email: "admin@hisabkitaab.com",
@@ -66,6 +67,9 @@ export async function signOut() {
   if (error) {
     throw error
   }
+
+  // Use SessionManager for comprehensive cleanup
+  await sessionManager.forceLogout()
 }
 
 export async function getCurrentUser() {

@@ -5,6 +5,8 @@ import type React from "react"
 import { createContext, useContext, useEffect, useState } from "react"
 import type { User } from "@supabase/supabase-js"
 import { supabase, secureQueries, getSupabaseClient } from "@/lib/supabase"
+import { useOptimizedData } from "@/lib/cache-store"
+import { sessionManager } from "@/lib/session-manager"
 
 interface AuthContextType {
   user: User | null
@@ -19,6 +21,7 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const { setCurrentUser, clearAllCache } = useOptimizedData()
 
   useEffect(() => {
     // Optimized function to create user record safely
@@ -72,9 +75,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const currentUser = session?.user ?? null
           setUser(currentUser)
           
-          // Create user record in background - don't wait for it
+          // Set current user for cache session management
           if (currentUser) {
+            setCurrentUser(currentUser.id)
+            sessionManager.setCurrentUser(currentUser.id)
+            // Create user record in background - don't wait for it
             createUserRecord(currentUser).catch(console.warn)
+          } else {
+            setCurrentUser(null)
+            sessionManager.setCurrentUser(null)
           }
           
           setLoading(false)
@@ -89,6 +98,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         data: { subscription },
       } = client.auth.onAuthStateChange(async (event, session) => {
         const currentUser = session?.user ?? null
+        const previousUser = user
+        
+        // Clear data when signing out or switching users
+        if (event === 'SIGNED_OUT') {
+          sessionManager.clearUserData()
+          setCurrentUser(null)
+          sessionManager.setCurrentUser(null)
+        } else if (event === 'SIGNED_IN' && currentUser) {
+          // Check if this is a different user
+          if (previousUser && currentUser.id !== previousUser.id) {
+            sessionManager.clearUserData()
+          }
+          setCurrentUser(currentUser.id)
+          sessionManager.setCurrentUser(currentUser.id)
+        }
+        
         setUser(currentUser)
         
         // Create user record in background on sign in

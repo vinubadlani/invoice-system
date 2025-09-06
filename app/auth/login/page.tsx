@@ -32,6 +32,13 @@ export default function LoginPage() {
         setError("Service temporarily unavailable. Please try again later.")
         return
       }
+
+      // Clear any existing user data before login
+      localStorage.removeItem('selectedBusiness')
+      localStorage.removeItem('selectedBusinessId')
+      localStorage.removeItem('invoicing-cache')
+      localStorage.removeItem('business-context')
+      localStorage.removeItem('user-preferences')
       
       const { data, error } = await client.auth.signInWithPassword({
         email: email.trim(),

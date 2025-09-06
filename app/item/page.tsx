@@ -20,13 +20,13 @@ interface Item {
   business_id: string
   name: string
   code: string
-  hsn_code: string
-  gst_percent: number
-  unit: string
-  sales_price: number
-  purchase_price: number
-  opening_stock: number
-  description: string
+  hsn_code?: string
+  gst_percent?: number
+  unit?: string
+  sales_price?: number
+  purchase_price?: number
+  opening_stock?: number
+  description?: string
   created_at: string
 }
 
@@ -130,24 +130,24 @@ export default function ItemMaster() {
 
     if (filters.hsn_code) {
       filtered = filtered.filter(item =>
-        item.hsn_code?.toLowerCase().includes(filters.hsn_code.toLowerCase())
+        (item.hsn_code || "").toLowerCase().includes(filters.hsn_code.toLowerCase())
       )
     }
 
     if (filters.unit) {
       filtered = filtered.filter(item =>
-        item.unit.toLowerCase().includes(filters.unit.toLowerCase())
+        (item.unit || "").toLowerCase().includes(filters.unit.toLowerCase())
       )
     }
 
     // Apply select filters
     if (filters.gst_percent) {
-      filtered = filtered.filter(item => item.gst_percent === Number(filters.gst_percent))
+      filtered = filtered.filter(item => (item.gst_percent || 0) === Number(filters.gst_percent))
     }
 
     if (filters.stock_status) {
       filtered = filtered.filter(item => {
-        const stock = item.opening_stock
+        const stock = item.opening_stock || 0
         switch (filters.stock_status) {
           case 'in_stock':
             return stock > 10
@@ -208,7 +208,7 @@ export default function ItemMaster() {
     e.preventDefault()
     
     // Validate required fields
-    if (!formData.name.trim() || !formData.code.trim()) {
+    if (!formData.name?.trim() || !formData.code?.trim()) {
       toast({
         title: "Error",
         description: "Please fill in all required fields (Item Name and Code).",
@@ -239,15 +239,15 @@ export default function ItemMaster() {
       
       // Prepare clean form data
       const cleanFormData = {
-        name: formData.name.trim(),
-        code: formData.code.trim(),
-        hsn_code: formData.hsn_code.trim() || "",
+        name: (formData.name || "").trim(),
+        code: (formData.code || "").trim(),
+        hsn_code: (formData.hsn_code || "").trim(),
         gst_percent: Number(formData.gst_percent) || 0,
-        unit: formData.unit.trim() || "",
+        unit: (formData.unit || "").trim(),
         sales_price: Number(formData.sales_price) || 0,
         purchase_price: Number(formData.purchase_price) || 0,
         opening_stock: Number(formData.opening_stock) || 0,
-        description: formData.description.trim() || "",
+        description: (formData.description || "").trim(),
       }
 
       // Check for duplicate item code when creating new item
@@ -333,7 +333,7 @@ export default function ItemMaster() {
         if ('code' in error && error.code === '23505') {
           const errorDetails = 'details' in error ? error.details as string : ''
           if (errorDetails && errorDetails.includes('items_business_id_code_key')) {
-            const itemCode = editingItem ? editingItem.code : formData.code.trim()
+            const itemCode = editingItem ? editingItem.code : (formData.code || "").trim()
             errorMessage = `Item code "${itemCode}" already exists. Please use a different code.`
           } else {
             errorMessage = "This item already exists. Please check your data."
@@ -372,19 +372,28 @@ export default function ItemMaster() {
   }
 
   const handleEdit = (item: Item) => {
-    setFormData({
-      name: item.name,
-      code: item.code,
-      hsn_code: item.hsn_code,
-      gst_percent: item.gst_percent,
-      unit: item.unit,
-      sales_price: item.sales_price,
-      purchase_price: item.purchase_price,
-      opening_stock: item.opening_stock,
-      description: item.description,
-    })
-    setEditingItem(item)
-    setIsFormOpen(true)
+    try {
+      setFormData({
+        name: item.name || "",
+        code: item.code || "",
+        hsn_code: item.hsn_code || "",
+        gst_percent: item.gst_percent || 0,
+        unit: item.unit || "",
+        sales_price: item.sales_price || 0,
+        purchase_price: item.purchase_price || 0,
+        opening_stock: item.opening_stock || 0,
+        description: item.description || "",
+      })
+      setEditingItem(item)
+      setIsFormOpen(true)
+    } catch (error) {
+      console.error("Error editing item:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load item for editing. Please try again.",
+        variant: "destructive"
+      })
+    }
   }
 
   const handleDelete = async (item: Item) => {
@@ -464,7 +473,7 @@ export default function ItemMaster() {
       { 
         key: "unit", 
         label: "Unit",
-        render: (value: string) => <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">{value}</span>
+        render: (value: string) => <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">{value || "-"}</span>
       },
       { 
         key: "sales_price", 
@@ -485,6 +494,7 @@ export default function ItemMaster() {
         label: "Stock",
         render: (value: any, row: Item) => {
           const stock = Number(value) || 0
+          const unit = row.unit || ""
           return (
             <span
               className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -495,7 +505,7 @@ export default function ItemMaster() {
                     : "bg-red-100 text-red-800"
               }`}
             >
-              {stock} {row.unit}
+              {stock} {unit}
             </span>
           )
         }
@@ -646,7 +656,7 @@ export default function ItemMaster() {
                 <Input
                   id="name"
                   required
-                  value={formData.name}
+                  value={formData.name || ""}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 />
               </div>
@@ -656,7 +666,7 @@ export default function ItemMaster() {
                 <Input
                   id="code"
                   required
-                  value={formData.code}
+                  value={formData.code || ""}
                   onChange={(e) => setFormData({ ...formData, code: e.target.value })}
                 />
               </div>
@@ -665,7 +675,7 @@ export default function ItemMaster() {
                 <Label htmlFor="hsn_code">HSN Code</Label>
                 <Input
                   id="hsn_code"
-                  value={formData.hsn_code}
+                  value={formData.hsn_code || ""}
                   onChange={(e) => setFormData({ ...formData, hsn_code: e.target.value })}
                 />
               </div>
@@ -673,7 +683,7 @@ export default function ItemMaster() {
               <div className="space-y-2">
                 <Label htmlFor="gst_percent">GST %</Label>
                 <Select
-                  value={formData.gst_percent.toString()}
+                  value={(formData.gst_percent || 0).toString()}
                   onValueChange={(value) => setFormData({ ...formData, gst_percent: Number(value) })}
                 >
                   <SelectTrigger>
@@ -693,7 +703,7 @@ export default function ItemMaster() {
                 <Label htmlFor="unit">Unit</Label>
                 <Input
                   id="unit"
-                  value={formData.unit}
+                  value={formData.unit || ""}
                   onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                   placeholder="Kg, Pcs, Ltr, etc."
                 />
@@ -705,7 +715,7 @@ export default function ItemMaster() {
                   id="sales_price"
                   type="number"
                   step="0.01"
-                  value={formData.sales_price}
+                  value={formData.sales_price || 0}
                   onChange={(e) => setFormData({ ...formData, sales_price: Number.parseFloat(e.target.value) || 0 })}
                 />
               </div>
@@ -716,7 +726,7 @@ export default function ItemMaster() {
                   id="purchase_price"
                   type="number"
                   step="0.01"
-                  value={formData.purchase_price}
+                  value={formData.purchase_price || 0}
                   onChange={(e) => setFormData({ ...formData, purchase_price: Number.parseFloat(e.target.value) || 0 })}
                 />
               </div>
@@ -726,7 +736,7 @@ export default function ItemMaster() {
                 <Input
                   id="opening_stock"
                   type="number"
-                  value={formData.opening_stock}
+                  value={formData.opening_stock || 0}
                   onChange={(e) => setFormData({ ...formData, opening_stock: Number.parseInt(e.target.value) || 0 })}
                 />
               </div>
@@ -736,7 +746,7 @@ export default function ItemMaster() {
                 <Textarea
                   id="description"
                   rows={3}
-                  value={formData.description}
+                  value={formData.description || ""}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 />
               </div>
