@@ -1,0 +1,284 @@
+
+> CREATE TABLE public.bank_accounts (
+      id uuid DEFAULT gen_random_uuid() NOT NULL,
+      business_id uuid NOT NULL,
+      bank_name character varying(255) NOT NULL,
+      account_number character varying(50) NOT NULL,
+      ifsc_code character varying(11) NOT NULL,
+      account_type character varying(20) NOT NULL,
+      branch_name character varying(255) NOT NULL,
+      account_holder_name character varying(255) NOT NULL,
+      opening_balance numeric(15,2) DEFAULT 0,
+      current_balance numeric(15,2) DEFAULT 0,
+      is_active boolean DEFAULT true,
+      created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+      updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+      CONSTRAINT bank_accounts_account_type_check CHECK (((account_type)::text = ANY ((ARRAY['Savings'::character varying, 'Current'::character varying, 'CC'::character varying, 'OD'::character varying])::text[])))
+  );
+  
+  
+  ALTER TABLE public.bank_accounts OWNER TO postgres;
+  
+  --
+  -- Name: bank_transactions; Type: TABLE; Schema: public; Owner: postgres
+  --
+  
+> CREATE TABLE public.bank_transactions (
+      id uuid DEFAULT gen_random_uuid() NOT NULL,
+      business_id uuid NOT NULL,
+      date date NOT NULL,
+      bank_name text NOT NULL,
+      account_no text NOT NULL,
+      type text NOT NULL,
+      amount numeric(15,2) NOT NULL,
+      purpose text NOT NULL,
+      created_at timestamp with time zone DEFAULT now(),
+      CONSTRAINT bank_transactions_type_check CHECK ((type = ANY (ARRAY['Deposit'::text, 'Withdrawal'::text, 'Expense'::text])))
+  );
+  
+  
+  ALTER TABLE public.bank_transactions OWNER TO postgres;
+  
+  --
+  -- Name: businesses; Type: TABLE; Schema: public; Owner: postgres
+  --
+  
+> CREATE TABLE public.businesses (
+      id uuid DEFAULT gen_random_uuid() NOT NULL,
+      user_id uuid NOT NULL,
+      name text NOT NULL,
+      address text NOT NULL,
+      city text NOT NULL,
+      state text NOT NULL,
+      pincode text NOT NULL,
+      phone text NOT NULL,
+      email text NOT NULL,
+      gstin text,
+      pan text,
+      terms_conditions text DEFAULT 'Payment due within 30 days
+  Goods once sold will not be taken back
+  Interest @ 18% p.a. will be charged on overdue amounts
+  Subject to jurisdiction only'::text,
+      created_at timestamp with time zone DEFAULT now(),
+      invoice_template text DEFAULT 'classic'::text
+  );
+  
+  
+  ALTER TABLE public.businesses OWNER TO postgres;
+  
+  --
+  -- Name: expenses; Type: TABLE; Schema: public; Owner: postgres
+  --
+  
+> CREATE TABLE public.expenses (
+      id uuid DEFAULT gen_random_uuid() NOT NULL,
+      business_id uuid NOT NULL,
+      category character varying(50) NOT NULL,
+      description text NOT NULL,
+      amount numeric(15,2) NOT NULL,
+      date date NOT NULL,
+      receipt_url text,
+      created_at timestamp with time zone DEFAULT now(),
+      updated_at timestamp with time zone DEFAULT now(),
+      CONSTRAINT expenses_amount_check CHECK ((amount > (0)::numeric))
+  );
+  
+  
+  ALTER TABLE public.expenses OWNER TO postgres;
+  
+  --
+  -- Name: invoices; Type: TABLE; Schema: public; Owner: postgres
+  --
+  
+> CREATE TABLE public.invoices (
+      id uuid DEFAULT gen_random_uuid() NOT NULL,
+      business_id uuid NOT NULL,
+      invoice_no text NOT NULL,
+      date date NOT NULL,
+      party_name text NOT NULL,
+      gstin text,
+      state text NOT NULL,
+      address text NOT NULL,
+      items jsonb DEFAULT '[]'::jsonb NOT NULL,
+      total_tax numeric(15,2) DEFAULT 0,
+      round_off numeric(15,2) DEFAULT 0,
+      net_total numeric(15,2) NOT NULL,
+      payment_received numeric(15,2) DEFAULT 0,
+      balance_due numeric(15,2) DEFAULT 0,
+      type text NOT NULL,
+      created_at timestamp with time zone DEFAULT now(),
+      party_id uuid,
+      status text DEFAULT 'draft'::text,
+      due_date date,
+      payment_method text DEFAULT 'Cash'::text,
+      subtotal numeric(15,2) DEFAULT 0,
+      discount_amount numeric(15,2) DEFAULT 0,
+      discount_percent numeric(5,2) DEFAULT 0,
+      updated_at timestamp with time zone DEFAULT now(),
+      CONSTRAINT invoices_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'sent'::text, 'paid'::text, 'partial'::text, 'overdue'::text, 'cancelled'::text]))),
+      CONSTRAINT invoices_type_check CHECK ((type = ANY (ARRAY['sales'::text, 'purchase'::text])))
+  );
+  
+  
+  ALTER TABLE public.invoices OWNER TO postgres;
+  
+  --
+  -- Name: items; Type: TABLE; Schema: public; Owner: postgres
+  --
+  
+> CREATE TABLE public.items (
+      id uuid DEFAULT gen_random_uuid() NOT NULL,
+      business_id uuid NOT NULL,
+      name text NOT NULL,
+      code text NOT NULL,
+      hsn_code text,
+      gst_percent numeric(5,2) DEFAULT 0,
+      unit text NOT NULL,
+      sales_price numeric(15,2) DEFAULT 0,
+      purchase_price numeric(15,2) DEFAULT 0,
+      opening_stock integer DEFAULT 0,
+      description text,
+      created_at timestamp with time zone DEFAULT now()
+  );
+  
+  
+  ALTER TABLE public.items OWNER TO postgres;
+  
+  --
+  -- Name: parties; Type: TABLE; Schema: public; Owner: postgres
+  --
+  
+> CREATE TABLE public.parties (
+      id uuid DEFAULT gen_random_uuid() NOT NULL,
+      business_id uuid NOT NULL,
+      name text NOT NULL,
+      mobile text NOT NULL,
+      email text,
+      gstin text,
+      pan text,
+      type text DEFAULT 'Debtor'::text NOT NULL,
+      opening_balance numeric(15,2) DEFAULT 0,
+      balance_type text DEFAULT 'To Collect'::text NOT NULL,
+      address text NOT NULL,
+      city text NOT NULL,
+      state text NOT NULL,
+      pincode text NOT NULL,
+      created_at timestamp with time zone DEFAULT now(),
+      CONSTRAINT parties_balance_type_check CHECK ((balance_type = ANY (ARRAY['To Collect'::text, 'To Pay'::text]))),
+      CONSTRAINT parties_type_check CHECK ((type = ANY (ARRAY['Debtor'::text, 'Creditor'::text, 'Expense'::text])))
+  );
+  
+  
+  ALTER TABLE public.parties OWNER TO postgres;
+  
+  --
+  -- Name: payments; Type: TABLE; Schema: public; Owner: postgres
+  --
+  
+> CREATE TABLE public.payments (
+      id uuid DEFAULT gen_random_uuid() NOT NULL,
+      business_id uuid NOT NULL,
+      date date NOT NULL,
+      party_name text NOT NULL,
+      type text NOT NULL,
+      invoice_no text,
+      amount numeric(15,2) NOT NULL,
+      mode text DEFAULT 'Cash'::text NOT NULL,
+      remarks text,
+      created_at timestamp with time zone DEFAULT now(),
+      CONSTRAINT payments_type_check CHECK ((type = ANY (ARRAY['Received'::text, 'Paid'::text])))
+  );
+  
+  
+  ALTER TABLE public.payments OWNER TO postgres;
+  
+  --
+  -- Name: sales_analytics; Type: VIEW; Schema: public; Owner: postgres
+  --
+  
+  CREATE VIEW public.sales_analytics AS
+   SELECT business_id,
+      date_trunc('day'::text, (date)::timestamp with time zone) AS sale_date,
+      date_trunc('week'::text, (date)::timestamp with time zone) AS sale_week,
+      date_trunc('month'::text, (date)::timestamp with time zone) AS sale_month,
+      count(*) AS invoice_count,
+      sum(subtotal) AS total_subtotal,
+      sum(total_tax) AS total_gst,
+      sum(net_total) AS total_amount,
+      sum(payment_received) AS total_received,
+      sum(balance_due) AS total_pending,
+      avg(net_total) AS average_order_value
+     FROM public.invoices i
+    WHERE (type = 'sales'::text)
+    GROUP BY business_id, (date_trunc('day'::text, (date)::timestamp with time zone)), (date_trunc('week'::text, (date)::timestamp with time zone)), (date_trunc('month'::text, (date)::timestamp with time zone));
+  
+  
+  ALTER VIEW public.sales_analytics OWNER TO postgres;
+  
+  --
+> CREATE TABLE public.sales_items (
+      id uuid DEFAULT gen_random_uuid() NOT NULL,
+      invoice_id uuid NOT NULL,
+      business_id uuid NOT NULL,
+      item_name text NOT NULL,
+      item_code text,
+      hsn_code text,
+      quantity numeric(15,3) NOT NULL,
+      unit text NOT NULL,
+      rate numeric(15,2) NOT NULL,
+      amount numeric(15,2) NOT NULL,
+      gst_percent numeric(5,2) DEFAULT 0,
+      gst_amount numeric(15,2) DEFAULT 0,
+      total_amount numeric(15,2) NOT NULL,
+      created_at timestamp with time zone DEFAULT now()
+  );
+  
+  
+  ALTER TABLE public.sales_items OWNER TO postgres;
+  
+  --
+  -- Name: users; Type: TABLE; Schema: public; Owner: postgres
+  --
+  
+> CREATE TABLE public.users (
+      id uuid NOT NULL,
+      email text NOT NULL,
+      full_name text NOT NULL,
+      created_at timestamp with time zone DEFAULT now()
+  );
+  
+  
+  ALTER TABLE public.users OWNER TO postgres;
+  
+  --
+  -- Name: messages; Type: TABLE; Schema: realtime; Owner: supabase_realtime_admin
+  --
+  
+  CREATE TABLE realtime.messages (
+      topic text NOT NULL,
+      extension text NOT NULL,
+      payload jsonb,
+      event text,
+      private boolean DEFAULT false,
+      updated_at timestamp without time zone DEFAULT now() NOT NULL,
+      inserted_at timestamp without time zone DEFAULT now() NOT NULL,
+      id uuid DEFAULT gen_random_uuid() NOT NULL
+  )
+  PARTITION BY RANGE (inserted_at);
+  
+  
+  ALTER TABLE realtime.messages OWNER TO supabase_realtime_admin;
+  
+  --
+  -- Name: messages_2025_09_18; Type: TABLE; Schema: realtime; Owner: supabase_admin
+  --
+  
+  CREATE TABLE realtime.messages_2025_09_18 (
+      topic text NOT NULL,
+      extension text NOT NULL,
+      payload jsonb,
+      event text,
+      private boolean DEFAULT false,
+      updated_at timestamp without time zone DEFAULT now() NOT NULL,
+      inserted_at timestamp without time zone DEFAULT now() NOT NULL,
+
