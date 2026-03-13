@@ -20,6 +20,12 @@ import News from './website/news';
 import Slider from './website/slider';
 import Ticker from './website/ticker';
 
+// Accounting/Business Pages
+import AuthTest from './pages/AuthTest';
+import Parties from './pages/Parties';
+import Items from './pages/Items';
+import SalesInvoices from './pages/SalesInvoices';
+
 function App() {
   return (
     <Router>
@@ -28,18 +34,34 @@ function App() {
         <div className="flex-grow overflow-y-auto">
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            
+            {/* Auth Test */}
+            <Route path="/auth-test" element={<AuthTest />} />
+            
+            {/* Accounting/Business Routes */}
+            <Route path="/parties" element={<Parties />} />
+            <Route path="/items" element={<Items />} />
+            <Route path="/sales-invoices" element={<SalesInvoices />} />
+            
+            {/* Admin Routes */}
             <Route path="/admin/admission" element={<Admission />} />
             <Route path="/admin/payment" element={<Payment />} />
             <Route path="/admin/stream" element={<Stream />} />
             <Route path="/admin/student" element={<Student />} />
+            
+            {/* Feedback Routes */}
             <Route path="/feedback/contact" element={<ContactForm />} />
             <Route path="/feedback/feedback" element={<Feedback />} />
             <Route path="/feedback/grievance" element={<Grievance />} />
             <Route path="/feedback/inquiries" element={<Inquiries />} />
+            
+            {/* Library Routes */}
             <Route path="/library/bookissue" element={<BookIssue />} />
             <Route path="/library/fine" element={<Fine />} />
             <Route path="/library/inventory" element={<Inventory />} />
             <Route path="/library/member" element={<Member />} />
+            
+            {/* Website Routes */}
             <Route path="/website/faculty" element={<Faculty />} />
             <Route path="/website/news" element={<News />} />
             <Route path="/website/slider" element={<Slider />} />

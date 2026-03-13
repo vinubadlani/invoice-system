@@ -3,18 +3,29 @@ import logo from "./assets/logo.png";
 import logo2 from "./assets/logo2.png";
 import {
   Home,
-  Settings,
   Users,
-  Activity,
+  Box,
+  Package,
+  Warehouse,
+  ShoppingCart,
+  FileText,
+  FileSignature,
+  DollarSign,
+  RotateCcw,
+  CreditCard,
+  Truck,
+  Receipt,
+  ShoppingBag,
+  ArrowLeftRight,
+  PieChart,
+  Calculator,
+  Tools,
+  User,
+  Settings,
   ChevronLeft,
   ChevronRight,
   Sun,
   Moon,
-  BarChart2, // Icon for Statistics
-  Globe,      // Icon for Website Management
-  Book,       // Icon for Library Management
-  MessageCircle, // Icon for Grievances and Feedbacks
-  FileText,   // Icon for each submenu
 } from "lucide-react";
 
 const Sidebar = () => {
@@ -31,106 +42,68 @@ const Sidebar = () => {
   };
 
   const sidebarItems = [
+    { label: "Dashboard", icon: <Home />, href: "#" },
+    { label: "Parties", icon: <Users />, href: "#" },
     {
-      label: "Home",
-      icon: <Home />,
-      href: "/",
-      subItems:[
-        {label:"Go to DashBoard",icon:<Home />,href:"/"},
-      ]
-    },
-    {
-      label: "Administration Statistics",
-      icon: <BarChart2 />,
-      href: "/admin/statistics",
+      label: "Items",
+      icon: <Box />,
+      href: "#",
       subItems: [
-        { label: "Stream Stats", icon: <FileText />, href: "/admin/stream" },
-        { label: "Student Stats", icon: <FileText />, href: "/admin/student" },
-        { label: "Admission Stats", icon: <FileText />, href: "/admin/admission" },
-        { label: "Payment Stats", icon: <FileText />, href: "/admin/payment" },
+        { label: "Inventory", icon: <Package />, href: "#" },
+        { label: "Godown", icon: <Warehouse />, href: "#" },
       ],
     },
     {
-      label: "Website Management",
-      icon: <Globe />,
-      href: "/website",
+      label: "Sales",
+      icon: <ShoppingCart />,
+      href: "#",
       subItems: [
-        { label: "News/Notice", icon: <FileText />, href: "/website/news" },
-        { label: "Slider", icon: <FileText />, href: "/website/slider" },
-        { label: "Ticker", icon: <FileText />, href: "/website/ticker" },
-        { label: "Faculty", icon: <FileText />, href: "/website/faculty" },
+        { label: "Sales Invoices", icon: <FileText />, href: "salesinvoice" },
+        { label: "Quotation", icon: <FileSignature />, href: "#" },
+        { label: "Payment In", icon: <DollarSign />, href: "#" },
+        { label: "Sales Return", icon: <RotateCcw />, href: "#" },
+        { label: "Credit Note", icon: <CreditCard />, href: "#" },
+        { label: "Delivery Challan", icon: <Truck />, href: "#" },
+        { label: "Proforma Invoice", icon: <Receipt />, href: "#" },
       ],
     },
     {
-      label: "Library Management",
-      icon: <Book />,
-      href: "/library",
+      label: "Purchases",
+      icon: <ShoppingBag />,
+      href: "#",
       subItems: [
-        { label: "Total Inventory", icon: <FileText />, href: "/library/inventory" },
-        { label: "Total Members", icon: <FileText />, href: "/library/member" },
-        { label: "Fine Collection Stats", icon: <FileText />, href: "/library/fine" },
-        { label: "Book Issued Stats", icon: <FileText />, href: "/library/bookissue" },
+        { label: "Purchase Invoices", icon: <FileText />, href: "#" },
+        { label: "Payment Out", icon: <DollarSign />, href: "#" },
+        { label: "Purchase Return", icon: <ArrowLeftRight />, href: "#" },
+        { label: "Debit Note", icon: <FileText />, href: "#" },
+        { label: "Purchase Orders", icon: <ShoppingCart />, href: "#" },
       ],
     },
-    {
-      label: "Grievances and Feedbacks",
-      icon: <MessageCircle />,
-      href: "/feedback",
-      subItems: [
-        { label: "Grievance Stats", icon: <FileText />, href: "/feedback/grievance" },
-        { label: "Feedbacks Received", icon: <FileText />, href: "/feedback/feedback" },
-        { label: "Inquiries Received", icon: <FileText />, href: "/feedback/inquiries" },
-        { label: "Contact Us Submissions", icon: <FileText />, href: "/feedback/contact" },
-      ],
-    },
+    { label: "Reports", icon: <PieChart />, href: "#" },
+    { label: "Accounting Solutions", icon: <Calculator />, href: "#" },
+    { label: "Business Tools", icon: <Tools />, href: "#" }, // Fixed
+    { label: "Manage Users", icon: <User />, href: "#" },
+    { label: "Settings", icon: <Settings />, href: "#" },
   ];
-  
 
   // Define theme colors
   const theme = {
-    dark: {
-      bg: "bg-black",
-      text: "text-white",
-      hover: "hover:bg-gray-800",
-      border: "border-gray-700",
-    },
-    light: {
-      bg: "bg-white",
-      text: "text-gray-800",
-      hover: "hover:bg-gray-100",
-      border: "border-gray-200",
-    },
+    dark: { bg: "bg-black", text: "text-white", hover: "hover:bg-gray-800", border: "border-gray-700" },
+    light: { bg: "bg-white", text: "text-gray-800", hover: "hover:bg-gray-100", border: "border-gray-200" },
   };
 
   const currentTheme = isDarkMode ? theme.dark : theme.light;
 
   return (
-    <nav
-      className={`
-        ${currentTheme.bg} ${currentTheme.text}
-        transition-all duration-300 min-h-screen
-        border-r ${currentTheme.border}
-        ${isExpanded ? "w-64" : "w-24"}
-        flex flex-col justify-between
-      `}
-    >
+    <nav className={`${currentTheme.bg} ${currentTheme.text} transition-all duration-300 min-h-screen border-r ${currentTheme.border} ${isExpanded ? "w-64" : "w-24"} flex flex-col justify-between`}>
       {/* Top section */}
       <div>
         <div className="p-4 flex justify-between items-center">
           <div className="flex items-center justify-center w-full">
-            <img
-              src={isDarkMode ? logo : logo2}
-              alt="Logo"
-              className="h-20 w-20" // Fixed size for the logo
-            />
-            {isExpanded && (
-              <h2 className="text-xl font-bold ml-2">IIITN</h2>
-            )}
+            <img src={isDarkMode ? logo : logo2} alt="Logo" className="h-20 w-20" />
+            {isExpanded && <h2 className="text-xl font-bold ml-2">IIITN</h2>}
           </div>
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className={`${currentTheme.hover} p-2 rounded-lg ml-auto`}
-          >
+          <button onClick={() => setIsExpanded(!isExpanded)} className={`${currentTheme.hover} p-2 rounded-lg ml-auto`}>
             {isExpanded ? <ChevronLeft /> : <ChevronRight />}
           </button>
         </div>
@@ -138,10 +111,7 @@ const Sidebar = () => {
         <ul className="mt-8">
           {sidebarItems.map((item, index) => (
             <li key={index}>
-              <div
-                onClick={() => item.subItems && toggleMenu(item.label)}
-                className={`${currentTheme.hover} cursor-pointer flex items-center p-4 transition-colors duration-200`}
-              >
+              <div onClick={() => item.subItems && toggleMenu(item.label)} className={`${currentTheme.hover} cursor-pointer flex items-center p-4 transition-colors duration-200`}>
                 {item.icon}
                 {isExpanded && <span className="ml-4">{item.label}</span>}
               </div>
@@ -149,10 +119,7 @@ const Sidebar = () => {
                 <ul className="ml-8">
                   {item.subItems.map((subItem, subIndex) => (
                     <li key={subIndex}>
-                      <a
-                        href={subItem.href}
-                        className={`${currentTheme.hover} cursor-pointer flex items-center p-2 transition-colors duration-200`}
-                      >
+                      <a href={subItem.href} className={`${currentTheme.hover} cursor-pointer flex items-center p-2 transition-colors duration-200`}>
                         {subItem.icon}
                         {isExpanded && <span className="ml-2">{subItem.label}</span>}
                       </a>
@@ -167,15 +134,7 @@ const Sidebar = () => {
 
       {/* Theme toggle button at bottom */}
       <div className="p-4 border-t border-gray-700">
-        <button
-          onClick={() => setIsDarkMode(!isDarkMode)}
-          className={`
-            ${currentTheme.hover}
-            p-2 rounded-lg
-            w-full flex items-center justify-center
-            transition-colors duration-200
-          `}
-        >
+        <button onClick={() => setIsDarkMode(!isDarkMode)} className={`${currentTheme.hover} p-2 rounded-lg w-full flex items-center justify-center transition-colors duration-200`}>
           {isExpanded ? (
             <div className="flex items-center">
               {isDarkMode ? <Sun className="mr-2" /> : <Moon className="mr-2" />}

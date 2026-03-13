@@ -20,7 +20,41 @@ body {
   width: 100%;
   margin: 0 auto;
 }
+
 /* Custom width for .w-64 */
 .w-64 {
-    width: 14rem;
+  width: 14rem;
+}
+
+/* Width for collapsed sidebar */
+.w-24 {
+  width: 6rem;
+}
+
+/* Transition styles */
+.transition-all {
+  transition-property: all;
+}
+
+.duration-300 {
+  transition-duration: 300ms;
+}
+
+/* Hover effects */
+a:hover, button:hover {
+  opacity: 0.9;
+}
+
+/* Make links take full width */
+a {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Additional responsive styles */
+@media (max-width: 768px) {
+  .w-64 {
+    width: 100%;
+  }
 }
