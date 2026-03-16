@@ -1,4 +1,3 @@
-import { createServerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { type NextRequest, NextResponse } from "next/server"
 
@@ -19,24 +18,42 @@ export async function GET(request: NextRequest) {
     }
 
     const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      publicKey,
-      {
-        cookies: {
-          getAll: () => cookieStore.getAll(),
-          setAll: (cookiesToSet) => {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              try {
-                cookieStore.set(name, value, options)
-              } catch {
-                // Route handlers may run in contexts where setting cookies is restricted.
-              }
-            })
+    const helpers = (await import("@supabase/auth-helpers-nextjs")) as Record<string, any>
+
+    let supabase: any
+    if (typeof helpers.createServerClient === "function") {
+      supabase = helpers.createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        publicKey,
+        {
+          cookies: {
+            getAll: () => cookieStore.getAll(),
+            setAll: (cookiesToSet: Array<{ name: string; value: string; options?: any }>) => {
+              cookiesToSet.forEach(({ name, value, options }) => {
+                try {
+                  cookieStore.set(name, value, options)
+                } catch {
+                  // Route handlers may run in contexts where setting cookies is restricted.
+                }
+              })
+            },
           },
-        },
-      }
-    )
+        }
+      )
+    } else if (typeof helpers.createRouteHandlerClient === "function") {
+      supabase = helpers.createRouteHandlerClient({ cookies })
+    } else if (typeof helpers.createPagesServerClient === "function") {
+      const res = NextResponse.next()
+      supabase = helpers.createPagesServerClient(
+        { req: request as any, res: res as any },
+        {
+          supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+          supabaseKey: publicKey,
+        }
+      )
+    } else {
+      throw new Error("No compatible Supabase auth helper client found")
+    }
 
     try {
       const { data, error } = await supabase.auth.exchangeCodeForSession(code)
