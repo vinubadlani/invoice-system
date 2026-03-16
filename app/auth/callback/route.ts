@@ -25,6 +25,15 @@ export async function GET(request: NextRequest) {
       {
         cookies: {
           getAll: () => cookieStore.getAll(),
+          setAll: (cookiesToSet) => {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              try {
+                cookieStore.set(name, value, options)
+              } catch {
+                // Route handlers may run in contexts where setting cookies is restricted.
+              }
+            })
+          },
         },
       }
     )
