@@ -1,0 +1,3 @@
+invoice_number,invoice_date,party_name,state,address,item_name,quantity,rate,amount,gst_amount,total_amount,payment_received,payment_method,notes
+INV001,2024-01-15,ABC Company,Maharashtra,123 Main St Mumbai,Sample Product 1,10,100,1000,180,1180,500,Cash,Test sales-entry bulk upload
+INV002,2024-01-16,ABC Company,Maharashtra,123 Main St Mumbai,Sample Product 2,5,200,1000,180,1180,1180,UPI,Fully paid test invoice

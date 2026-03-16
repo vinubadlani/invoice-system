@@ -1,0 +1,681 @@
+"use client"
+
+import { useState, useEffect, useCallback, useMemo } from "react"
+import { supabase } from "@/lib/supabase"
+import { useOptimizedData } from "@/lib/cache-store"
+import { Plus, Edit, Save, X, ShoppingCart, Package, Calendar, DollarSign } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { Card, CardContent } from "@/components/ui/card"
+import DataTable from "@/components/DataTable"
+import DataTableFilters, { FilterConfig, FilterValues } from "@/components/DataTableFilters"
+import AuthenticatedLayout from "@/components/AuthenticatedLayout"
+
+interface PurchaseEntry {
+  id: string
+  business_id: string
+  party_id: string
+  party_name: string
+  invoice_number: string
+  purchase_date: string
+  item_name: string
+  quantity: number
+  unit: string
+  rate: number
+  amount: number
+  tax_rate: number
+  tax_amount: number
+  total_amount: number
+  payment_status: "Paid" | "Pending" | "Partial"
+  notes: string
+  created_at: string
+}
+
+interface Party {
+  id: string
+  name: string
+  type: string
+}
+
+export default function PurchaseEntryPage() {
+  const [purchases, setPurchases] = useState<PurchaseEntry[]>([])
+  const [filteredPurchases, setFilteredPurchases] = useState<PurchaseEntry[]>([])
+  const [parties, setParties] = useState<Party[]>([])
+  const [loading, setLoading] = useState(true)
+  const [businessId, setBusinessId] = useState<string>("")
+
+  // Filter configuration
+  const filterConfigs: FilterConfig[] = [
+    {
+      id: "party_name",
+      label: "Party Name",
+      type: "text",
+      placeholder: "Search by party name"
+    },
+    {
+      id: "invoice_number",
+      label: "Invoice Number",
+      type: "text",
+      placeholder: "Search by invoice number"
+    },
+    {
+      id: "item_name",
+      label: "Item Name",
+      type: "text",
+      placeholder: "Search by item name"
+    },
+    {
+      id: "payment_status",
+      label: "Payment Status",
+      type: "select",
+      options: [
+        { value: "Paid", label: "Paid" },
+        { value: "Pending", label: "Pending" },
+        { value: "Partial", label: "Partial" }
+      ]
+    },
+    {
+      id: "purchase_date",
+      label: "Purchase Date",
+      type: "date"
+    }
+  ]
+
+  // Use optimized data fetching
+  const { fetchParties, clearCache } = useOptimizedData()
+
+  useEffect(() => {
+    const storedBusiness = localStorage.getItem("selectedBusiness")
+    if (storedBusiness) {
+      const business = JSON.parse(storedBusiness)
+      setBusinessId(business.id)
+      loadData(business.id)
+    }
+  }, [])
+
+  const loadData = useCallback(async (businessId: string) => {
+    try {
+      setLoading(true)
+      
+      // Load parties
+      const partiesData = await fetchParties(businessId)
+      setParties(partiesData.filter((p: Party) => p.type === 'Creditor'))
+      
+      // Load purchase entries
+      const { data: purchasesData, error } = await supabase
+        .from("purchase_entries")
+        .select("*")
+        .eq("business_id", businessId)
+        .order("purchase_date", { ascending: false })
+
+      if (error) throw error
+      setPurchases(purchasesData || [])
+      setFilteredPurchases(purchasesData || [])
+    } catch (error) {
+      console.error("Error loading data:", error)
+    } finally {
+      setLoading(false)
+    }
+  }, [fetchParties])
+
+  const handleFilterChange = (filters: FilterValues) => {
+    let filtered = [...purchases]
+
+    // Apply text filters
+    if (filters.party_name) {
+      filtered = filtered.filter(purchase => 
+        purchase.party_name.toLowerCase().includes(filters.party_name.toLowerCase())
+      )
+    }
+
+    if (filters.invoice_number) {
+      filtered = filtered.filter(purchase =>
+        purchase.invoice_number.toLowerCase().includes(filters.invoice_number.toLowerCase())
+      )
+    }
+
+    if (filters.item_name) {
+      filtered = filtered.filter(purchase =>
+        purchase.item_name.toLowerCase().includes(filters.item_name.toLowerCase())
+      )
+    }
+
+    // Apply select filters
+    if (filters.payment_status) {
+      filtered = filtered.filter(purchase => purchase.payment_status === filters.payment_status)
+    }
+
+    // Apply date filters
+    if (filters.purchase_date) {
+      filtered = filtered.filter(purchase => 
+        purchase.purchase_date.startsWith(filters.purchase_date)
+      )
+    }
+
+    setFilteredPurchases(filtered)
+  }
+
+  const handleExport = () => {
+    const csvContent = [
+      ['Party Name', 'Invoice Number', 'Purchase Date', 'Item Name', 'Quantity', 'Unit', 'Rate', 'Amount', 'Tax Rate', 'Tax Amount', 'Total Amount', 'Payment Status', 'Notes'],
+      ...filteredPurchases.map(purchase => [
+        purchase.party_name,
+        purchase.invoice_number,
+        purchase.purchase_date,
+        purchase.item_name,
+        purchase.quantity,
+        purchase.unit,
+        purchase.rate,
+        purchase.amount,
+        purchase.tax_rate + '%',
+        purchase.tax_amount,
+        purchase.total_amount,
+        purchase.payment_status,
+        purchase.notes || ''
+      ])
+    ].map(row => row.join(',')).join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `purchase_entries_${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    window.URL.revokeObjectURL(url)
+  }
+
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [editingPurchase, setEditingPurchase] = useState<PurchaseEntry | null>(null)
+
+  const [formData, setFormData] = useState({
+    party_id: "",
+    invoice_number: "",
+    purchase_date: new Date().toISOString().split('T')[0],
+    item_name: "",
+    quantity: 1,
+    unit: "pcs",
+    rate: 0,
+    amount: 0,
+    tax_rate: 18,
+    tax_amount: 0,
+    total_amount: 0,
+    payment_status: "Pending" as "Paid" | "Pending" | "Partial",
+    notes: "",
+  })
+
+  // Auto-calculate amounts when quantity, rate, or tax_rate changes
+  useEffect(() => {
+    const amount = formData.quantity * formData.rate
+    const taxAmount = (amount * formData.tax_rate) / 100
+    const totalAmount = amount + taxAmount
+    
+    setFormData(prev => ({
+      ...prev,
+      amount,
+      tax_amount: taxAmount,
+      total_amount: totalAmount
+    }))
+  }, [formData.quantity, formData.rate, formData.tax_rate])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!businessId) return
+
+    try {
+      const selectedParty = parties.find(p => p.id === formData.party_id)
+      if (!selectedParty) return
+
+      const purchaseData = {
+        ...formData,
+        business_id: businessId,
+        party_name: selectedParty.name
+      }
+
+      if (editingPurchase) {
+        const { error } = await supabase
+          .from("purchase_entries")
+          .update(purchaseData)
+          .eq("id", editingPurchase.id)
+
+        if (error) throw error
+
+        const updatedPurchases = purchases.map((purchase) => 
+          purchase.id === editingPurchase.id ? { ...purchase, ...purchaseData } : purchase
+        )
+        setPurchases(updatedPurchases)
+        setFilteredPurchases(updatedPurchases)
+        setEditingPurchase(null)
+      } else {
+        const { data, error } = await supabase
+          .from("purchase_entries")
+          .insert([purchaseData])
+          .select()
+          .single()
+
+        if (error) throw error
+        const newPurchases = [data, ...purchases]
+        setPurchases(newPurchases)
+        setFilteredPurchases(newPurchases)
+      }
+      resetForm()
+      clearCache()
+    } catch (error) {
+      console.error("Error saving purchase entry:", error)
+    }
+  }
+
+  const resetForm = () => {
+    setFormData({
+      party_id: "",
+      invoice_number: "",
+      purchase_date: new Date().toISOString().split('T')[0],
+      item_name: "",
+      quantity: 1,
+      unit: "pcs",
+      rate: 0,
+      amount: 0,
+      tax_rate: 18,
+      tax_amount: 0,
+      total_amount: 0,
+      payment_status: "Pending",
+      notes: "",
+    })
+    setIsFormOpen(false)
+    setEditingPurchase(null)
+  }
+
+  const handleEdit = (purchase: PurchaseEntry) => {
+    setFormData({
+      party_id: purchase.party_id,
+      invoice_number: purchase.invoice_number,
+      purchase_date: purchase.purchase_date,
+      item_name: purchase.item_name,
+      quantity: purchase.quantity,
+      unit: purchase.unit,
+      rate: purchase.rate,
+      amount: purchase.amount,
+      tax_rate: purchase.tax_rate,
+      tax_amount: purchase.tax_amount,
+      total_amount: purchase.total_amount,
+      payment_status: purchase.payment_status,
+      notes: purchase.notes,
+    })
+    setEditingPurchase(purchase)
+    setIsFormOpen(true)
+  }
+
+  // Safe number formatting function
+  const formatCurrency = (value: any) => {
+    const num = Number(value) || 0
+    return `₹${num.toLocaleString('en-IN')}`
+  }
+
+  // Optimized columns with safe formatting
+  const columns = useMemo(
+    () => [
+      { 
+        key: "party_name", 
+        label: "Party Name",
+        render: (value: string) => <span className="font-medium text-blue-600">{value}</span>
+      },
+      { 
+        key: "invoice_number", 
+        label: "Invoice Number",
+        render: (value: string) => (
+          <div className="flex items-center gap-1">
+            <Package className="h-3 w-3 text-gray-400" />
+            {value}
+          </div>
+        )
+      },
+      { 
+        key: "purchase_date", 
+        label: "Date",
+        render: (value: string) => (
+          <div className="flex items-center gap-1">
+            <Calendar className="h-3 w-3 text-gray-400" />
+            {new Date(value).toLocaleDateString('en-IN')}
+          </div>
+        )
+      },
+      { key: "item_name", label: "Item" },
+      { 
+        key: "quantity", 
+        label: "Quantity",
+        render: (value: number, row: PurchaseEntry) => `${value} ${row.unit}`
+      },
+      {
+        key: "rate",
+        label: "Rate",
+        render: (value: any) => formatCurrency(value)
+      },
+      {
+        key: "total_amount",
+        label: "Total Amount",
+        render: (value: any) => (
+          <span className="font-medium text-green-600">
+            {formatCurrency(value)}
+          </span>
+        )
+      },
+      {
+        key: "payment_status",
+        label: "Payment Status",
+        render: (value: string) => (
+          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+            value === 'Paid' ? 'bg-green-100 text-green-800' :
+            value === 'Partial' ? 'bg-yellow-100 text-yellow-800' :
+            'bg-red-100 text-red-800'
+          }`}>
+            {value}
+          </span>
+        )
+      }
+    ],
+    []
+  )
+
+  const actions = (purchase: PurchaseEntry) => (
+    <Button variant="ghost" size="sm" onClick={() => handleEdit(purchase)}>
+      <Edit className="h-4 w-4" />
+    </Button>
+  )
+
+  const calculateSummary = () => {
+    const totalPurchases = filteredPurchases.length
+    const totalAmount = filteredPurchases.reduce((sum, p) => sum + (Number(p.total_amount) || 0), 0)
+    const totalTax = filteredPurchases.reduce((sum, p) => sum + (Number(p.tax_amount) || 0), 0)
+    const paidAmount = filteredPurchases
+      .filter(p => p.payment_status === 'Paid')
+      .reduce((sum, p) => sum + (Number(p.total_amount) || 0), 0)
+    const pendingAmount = filteredPurchases
+      .filter(p => p.payment_status === 'Pending')
+      .reduce((sum, p) => sum + (Number(p.total_amount) || 0), 0)
+
+    return { totalPurchases, totalAmount, totalTax, paidAmount, pendingAmount }
+  }
+
+  const summary = calculateSummary()
+
+  if (loading) {
+    return (
+      <AuthenticatedLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      </AuthenticatedLayout>
+    )
+  }
+
+  return (
+    <AuthenticatedLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Purchase Entry</h1>
+            <p className="text-gray-600 mt-1">Manage your purchase transactions and inventory</p>
+          </div>
+          <Button onClick={() => setIsFormOpen(true)} size="lg">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Purchase
+          </Button>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-blue-100 text-sm font-medium">Total Purchases</p>
+                  <p className="text-2xl font-bold">{summary.totalPurchases}</p>
+                </div>
+                <ShoppingCart className="h-8 w-8 text-blue-200" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-r from-green-500 to-green-600 text-white">
+            <CardContent className="p-6">
+              <div>
+                <p className="text-green-100 text-sm font-medium">Total Amount</p>
+                <p className="text-xl font-bold">{formatCurrency(summary.totalAmount)}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white">
+            <CardContent className="p-6">
+              <div>
+                <p className="text-purple-100 text-sm font-medium">Total Tax</p>
+                <p className="text-xl font-bold">{formatCurrency(summary.totalTax)}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-r from-orange-500 to-orange-600 text-white">
+            <CardContent className="p-6">
+              <div>
+                <p className="text-orange-100 text-sm font-medium">Paid Amount</p>
+                <p className="text-xl font-bold">{formatCurrency(summary.paidAmount)}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-r from-red-500 to-red-600 text-white">
+            <CardContent className="p-6">
+              <div>
+                <p className="text-red-100 text-sm font-medium">Pending Amount</p>
+                <p className="text-xl font-bold">{formatCurrency(summary.pendingAmount)}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Advanced Filters */}
+        <DataTableFilters
+          filters={filterConfigs}
+          onFilterChange={handleFilterChange}
+          onExport={handleExport}
+          showFinancialYear={true}
+        />
+
+        {/* Form */}
+        {isFormOpen && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">{editingPurchase ? "Edit Purchase" : "Add New Purchase"}</h2>
+              <Button variant="ghost" size="sm" onClick={resetForm}>
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="party_id">Party (Supplier) *</Label>
+                <Select
+                  value={formData.party_id}
+                  onValueChange={(value) => setFormData({ ...formData, party_id: value })}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select supplier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {parties.map((party) => (
+                      <SelectItem key={party.id} value={party.id}>
+                        {party.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="invoice_number">Invoice Number *</Label>
+                <Input
+                  id="invoice_number"
+                  required
+                  value={formData.invoice_number}
+                  onChange={(e) => setFormData({ ...formData, invoice_number: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="purchase_date">Purchase Date *</Label>
+                <Input
+                  id="purchase_date"
+                  type="date"
+                  required
+                  value={formData.purchase_date}
+                  onChange={(e) => setFormData({ ...formData, purchase_date: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="item_name">Item Name *</Label>
+                <Input
+                  id="item_name"
+                  required
+                  value={formData.item_name}
+                  onChange={(e) => setFormData({ ...formData, item_name: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="quantity">Quantity *</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  required
+                  value={formData.quantity}
+                  onChange={(e) => setFormData({ ...formData, quantity: Number.parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="unit">Unit *</Label>
+                <Select
+                  value={formData.unit}
+                  onValueChange={(value) => setFormData({ ...formData, unit: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pcs">Pieces</SelectItem>
+                    <SelectItem value="kg">Kilogram</SelectItem>
+                    <SelectItem value="ltr">Liter</SelectItem>
+                    <SelectItem value="mtr">Meter</SelectItem>
+                    <SelectItem value="box">Box</SelectItem>
+                    <SelectItem value="set">Set</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="rate">Rate per Unit *</Label>
+                <Input
+                  id="rate"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  required
+                  value={formData.rate}
+                  onChange={(e) => setFormData({ ...formData, rate: Number.parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="tax_rate">Tax Rate (%)</Label>
+                <Select
+                  value={formData.tax_rate.toString()}
+                  onValueChange={(value) => setFormData({ ...formData, tax_rate: Number.parseFloat(value) })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">0%</SelectItem>
+                    <SelectItem value="5">5%</SelectItem>
+                    <SelectItem value="12">12%</SelectItem>
+                    <SelectItem value="18">18%</SelectItem>
+                    <SelectItem value="28">28%</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="payment_status">Payment Status</Label>
+                <Select
+                  value={formData.payment_status}
+                  onValueChange={(value: "Paid" | "Pending" | "Partial") => setFormData({ ...formData, payment_status: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Pending">Pending</SelectItem>
+                    <SelectItem value="Paid">Paid</SelectItem>
+                    <SelectItem value="Partial">Partial</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Read-only calculated fields */}
+              <div className="space-y-2">
+                <Label>Amount (Auto-calculated)</Label>
+                <Input value={formatCurrency(formData.amount)} disabled />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Tax Amount (Auto-calculated)</Label>
+                <Input value={formatCurrency(formData.tax_amount)} disabled />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Total Amount (Auto-calculated)</Label>
+                <Input value={formatCurrency(formData.total_amount)} disabled className="font-bold" />
+              </div>
+
+              <div className="md:col-span-2 lg:col-span-3 space-y-2">
+                <Label htmlFor="notes">Notes</Label>
+                <Textarea
+                  id="notes"
+                  rows={3}
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                />
+              </div>
+
+              <div className="md:col-span-2 lg:col-span-3 flex justify-end space-x-3">
+                <Button type="button" variant="outline" onClick={resetForm}>
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  <Save className="h-4 w-4 mr-2" />
+                  {editingPurchase ? "Update" : "Save"} Purchase
+                </Button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Purchase Entries Table */}
+        <DataTable
+          data={filteredPurchases}
+          columns={columns}
+          title={`Purchase Entries (${filteredPurchases.length} of ${purchases.length})`}
+          searchKeys={["party_name", "invoice_number", "item_name"]}
+          actions={actions}
+        />
+      </div>
+    </AuthenticatedLayout>
+  )
+}

@@ -1,0 +1,532 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { fetchInvoices, fetchParties, queryBuilder, insertData, getCurrentUser } from "@/lib/supabase"
+import { Plus, Save, X, DollarSign, TrendingUp, TrendingDown, CreditCard, Calendar, Search, Filter, Eye } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import AuthenticatedLayout from "@/components/AuthenticatedLayout"
+import { useToast } from "@/hooks/use-toast"
+
+interface Payment {
+  id: string
+  business_id: string
+  party_id: string
+  party_name: string
+  invoice_id?: string
+  invoice_no?: string
+  type: "Received" | "Paid"
+  amount: number
+  mode: string
+  date: string
+  remarks?: string
+  created_at: string
+}
+
+interface PaymentStats {
+  totalReceived: number
+  totalPaid: number
+  netCashFlow: number
+  pendingReceivables: number
+  pendingPayables: number
+}
+
+export default function PaymentsPage() {
+  const [payments, setPayments] = useState<Payment[]>([])
+  const [filteredPayments, setFilteredPayments] = useState<Payment[]>([])
+  const [stats, setStats] = useState<PaymentStats | null>(null)
+  const [parties, setParties] = useState<any[]>([])
+  const [invoices, setInvoices] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [businessId, setBusinessId] = useState<string>("")
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [typeFilter, setTypeFilter] = useState("all")
+  const [saving, setSaving] = useState(false)
+  
+  const [formData, setFormData] = useState({
+    date: new Date().toISOString().split("T")[0],
+    party_id: "",
+    type: "Received" as "Received" | "Paid",
+    invoice_id: "",
+    amount: 0,
+    mode: "Cash",
+    remarks: "",
+  })
+
+  const { toast } = useToast()
+
+  useEffect(() => {
+    const storedBusiness = localStorage.getItem("selectedBusiness")
+    if (storedBusiness) {
+      const business = JSON.parse(storedBusiness)
+      setBusinessId(business.id)
+      loadPaymentsData(business.id)
+    } else {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    filterPayments()
+  }, [payments, searchTerm, typeFilter])
+
+  const loadPaymentsData = async (businessId: string) => {
+    try {
+      setLoading(true)
+      const user = await getCurrentUser()
+      
+      // Load data in parallel
+      const [paymentsData, partiesData, invoicesData] = await Promise.all([
+        queryBuilder('payments', '*', { business_id: businessId }, { orderBy: 'date', ascending: false }),
+        fetchParties(businessId, undefined, user?.id),
+        fetchInvoices(businessId, undefined, 100, user?.id)
+      ])
+
+      setPayments(paymentsData as unknown as Payment[])
+      setParties(partiesData)
+      setInvoices(invoicesData)
+
+      // Calculate stats with properly typed data
+      const typedPayments = paymentsData as unknown as Payment[]
+      const totalReceived = typedPayments
+        .filter((p: Payment) => p.type === 'Received')
+        .reduce((sum: number, p: Payment) => sum + p.amount, 0)
+      
+      const totalPaid = typedPayments
+        .filter((p: Payment) => p.type === 'Paid')
+        .reduce((sum: number, p: Payment) => sum + p.amount, 0)
+
+      const pendingReceivables = invoicesData
+        .filter((inv: any) => inv.type === 'sales' && (inv.balance_due || 0) > 0)
+        .reduce((sum: number, inv: any) => sum + (inv.balance_due || 0), 0)
+
+      const pendingPayables = invoicesData
+        .filter((inv: any) => inv.type === 'purchase' && (inv.balance_due || 0) > 0)
+        .reduce((sum: number, inv: any) => sum + (inv.balance_due || 0), 0)
+
+      setStats({
+        totalReceived,
+        totalPaid,
+        netCashFlow: totalReceived - totalPaid,
+        pendingReceivables,
+        pendingPayables
+      })
+
+    } catch (error) {
+      console.error("Error loading payments data:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load payments data",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filterPayments = () => {
+    let filtered = payments
+
+    if (searchTerm) {
+      filtered = filtered.filter(payment =>
+        payment.party_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        payment.invoice_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        payment.mode.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    }
+
+    if (typeFilter !== 'all') {
+      filtered = filtered.filter(payment => payment.type === typeFilter)
+    }
+
+    setFilteredPayments(filtered)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!formData.party_id || !formData.amount) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      setSaving(true)
+      const user = await getCurrentUser()
+      
+      const selectedParty = parties.find(p => p.id === formData.party_id)
+      const selectedInvoice = invoices.find(i => i.id === formData.invoice_id)
+
+      const paymentData = {
+        business_id: businessId,
+        party_id: formData.party_id,
+        party_name: selectedParty?.name || '',
+        invoice_id: formData.invoice_id || null,
+        invoice_no: selectedInvoice?.invoice_no || null,
+        type: formData.type,
+        amount: parseFloat(formData.amount.toString()),
+        mode: formData.mode,
+        date: formData.date,
+        remarks: formData.remarks || null,
+        created_at: new Date().toISOString()
+      }
+
+      const { error } = await insertData('payments', paymentData)
+      
+      if (error) {
+        throw error
+      }
+
+      toast({
+        title: "Success",
+        description: "Payment recorded successfully",
+      })
+
+      resetForm()
+      loadPaymentsData(businessId)
+
+    } catch (error: any) {
+      console.error("Error saving payment:", error)
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to save payment",
+        variant: "destructive"
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const resetForm = () => {
+    setFormData({
+      date: new Date().toISOString().split("T")[0],
+      party_id: "",
+      type: "Received",
+      invoice_id: "",
+      amount: 0,
+      mode: "Cash",
+      remarks: "",
+    })
+    setIsFormOpen(false)
+  }
+
+  const getRelatedInvoices = () => {
+    if (!formData.party_id) return []
+    return invoices.filter(inv => inv.party_id === formData.party_id)
+  }
+
+  if (loading) {
+    return (
+      <AuthenticatedLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      </AuthenticatedLayout>
+    )
+  }
+
+  return (
+    <AuthenticatedLayout>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+        <div className="p-6 space-y-8">
+          {/* Header */}
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Payments</h1>
+              <p className="text-slate-600 dark:text-slate-400">Manage cash flow and payment records</p>
+            </div>
+            <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-blue-600 hover:bg-blue-700">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Record Payment
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Record New Payment</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="date">Date</Label>
+                      <Input
+                        id="date"
+                        type="date"
+                        value={formData.date}
+                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="type">Type</Label>
+                      <Select value={formData.type} onValueChange={(value: "Received" | "Paid") => setFormData({ ...formData, type: value, party_id: "", invoice_id: "" })}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Received">Received</SelectItem>
+                          <SelectItem value="Paid">Paid</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="party">Party</Label>
+                    <Select value={formData.party_id} onValueChange={(value) => setFormData({ ...formData, party_id: value, invoice_id: "" })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select party" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {parties
+                          .filter(party => 
+                            formData.type === 'Received' ? party.type === 'Debtor' : party.type === 'Creditor'
+                          )
+                          .map((party) => (
+                            <SelectItem key={party.id} value={party.id}>
+                              {party.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {formData.party_id && (
+                    <div>
+                      <Label htmlFor="invoice">Invoice (Optional)</Label>
+                      <Select value={formData.invoice_id} onValueChange={(value) => setFormData({ ...formData, invoice_id: value })}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select invoice" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">No specific invoice</SelectItem>
+                          {getRelatedInvoices().map((invoice) => (
+                            <SelectItem key={invoice.id} value={invoice.id}>
+                              {invoice.invoice_no} - ₹{invoice.net_total?.toLocaleString()}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="amount">Amount</Label>
+                      <Input
+                        id="amount"
+                        type="number"
+                        step="0.01"
+                        value={formData.amount}
+                        onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="mode">Payment Mode</Label>
+                      <Select value={formData.mode} onValueChange={(value) => setFormData({ ...formData, mode: value })}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Cash">Cash</SelectItem>
+                          <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                          <SelectItem value="UPI">UPI</SelectItem>
+                          <SelectItem value="Cheque">Cheque</SelectItem>
+                          <SelectItem value="Card">Card</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="remarks">Remarks</Label>
+                    <Textarea
+                      id="remarks"
+                      value={formData.remarks}
+                      onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                      placeholder="Optional notes..."
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-4">
+                    <Button type="submit" disabled={saving} className="flex-1">
+                      {saving ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4 mr-2" />
+                          Save Payment
+                        </>
+                      )}
+                    </Button>
+                    <Button type="button" variant="outline" onClick={resetForm}>
+                      <X className="h-4 w-4 mr-2" />
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* Stats Cards */}
+          {stats && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+              <Card className="bg-gradient-to-br from-green-50 to-green-100 border-0 shadow-lg">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-semibold text-green-700">Total Received</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-green-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-800">₹{stats.totalReceived.toLocaleString()}</div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-br from-red-50 to-red-100 border-0 shadow-lg">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-semibold text-red-700">Total Paid</CardTitle>
+                  <TrendingDown className="h-4 w-4 text-red-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-red-800">₹{stats.totalPaid.toLocaleString()}</div>
+                </CardContent>
+              </Card>
+
+              <Card className={`bg-gradient-to-br ${stats.netCashFlow >= 0 ? 'from-blue-50 to-blue-100' : 'from-orange-50 to-orange-100'} border-0 shadow-lg`}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className={`text-sm font-semibold ${stats.netCashFlow >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>
+                    Net Cash Flow
+                  </CardTitle>
+                  <DollarSign className={`h-4 w-4 ${stats.netCashFlow >= 0 ? 'text-blue-600' : 'text-orange-600'}`} />
+                </CardHeader>
+                <CardContent>
+                  <div className={`text-2xl font-bold ${stats.netCashFlow >= 0 ? 'text-blue-800' : 'text-orange-800'}`}>
+                    ₹{stats.netCashFlow.toLocaleString()}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-0 shadow-lg">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-semibold text-purple-700">Pending Receivables</CardTitle>
+                  <CreditCard className="h-4 w-4 text-purple-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-purple-800">₹{stats.pendingReceivables.toLocaleString()}</div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100 border-0 shadow-lg">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-semibold text-indigo-700">Pending Payables</CardTitle>
+                  <CreditCard className="h-4 w-4 text-indigo-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-indigo-800">₹{stats.pendingPayables.toLocaleString()}</div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Filters */}
+          <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg">
+            <CardContent className="p-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Search payments..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger className="w-full md:w-48">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Payments</SelectItem>
+                    <SelectItem value="Received">Received</SelectItem>
+                    <SelectItem value="Paid">Paid</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Payments Table */}
+          <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg">
+            <CardHeader>
+              <CardTitle>Payment Records</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {filteredPayments.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Party</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Invoice</TableHead>
+                        <TableHead>Amount</TableHead>
+                        <TableHead>Mode</TableHead>
+                        <TableHead>Remarks</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredPayments.map((payment) => (
+                        <TableRow key={payment.id}>
+                          <TableCell>{new Date(payment.date).toLocaleDateString('en-IN')}</TableCell>
+                          <TableCell className="font-medium">{payment.party_name}</TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant={payment.type === 'Received' ? 'default' : 'secondary'}
+                              className={payment.type === 'Received' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}
+                            >
+                              {payment.type}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{payment.invoice_no || '-'}</TableCell>
+                          <TableCell className="font-mono">₹{payment.amount.toLocaleString()}</TableCell>
+                          <TableCell>{payment.mode}</TableCell>
+                          <TableCell className="max-w-xs truncate">{payment.remarks || '-'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Payments Found</h3>
+                  <p className="text-gray-500">Start recording payments to see them here</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </AuthenticatedLayout>
+  )
+}

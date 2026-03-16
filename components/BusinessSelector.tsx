@@ -1,0 +1,593 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { getSupabaseClient, fetchBusinesses as fetchBusinessesData } from "@/lib/supabase"
+import { rpcApi } from "@/lib/rpc-api"
+import { useOptimizedData } from "@/lib/cache-store"
+import { useBusiness } from "@/app/context/BusinessContext"
+import { Building2, Plus, Check, ChevronsUpDown, Loader2, Settings } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Badge } from "@/components/ui/badge"
+import { useToast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
+import { Business } from "@/lib/types"
+
+interface BusinessSelectorProps {
+  onBusinessChange?: (business: Business) => void
+  onBusinessSelect?: (business: Business) => void
+  className?: string
+}
+
+export default function BusinessSelector({ onBusinessChange, onBusinessSelect, className }: BusinessSelectorProps) {
+  const [businesses, setBusinesses] = useState<Business[]>([])
+  const [loading, setLoading] = useState(true)
+  const [open, setOpen] = useState(false)
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const { preloadCriticalData, clearCache } = useOptimizedData()
+  const { selectedBusiness, setSelectedBusiness } = useBusiness()
+  const { toast } = useToast()
+
+  const [newBusinessForm, setNewBusinessForm] = useState({
+    name: "",
+    address: "",
+    city: "",
+    state: "",
+    pincode: "",
+    phone: "",
+    email: "",
+    gstin: "",
+    pan: ""
+  })
+
+  useEffect(() => {
+    fetchBusinesses()
+  }, [])
+
+  const fetchBusinesses = async () => {
+    try {
+      setLoading(true)
+      
+      const client = getSupabaseClient()
+      if (!client) {
+        console.error("Supabase client not available")
+        setLoading(false)
+        return
+      }
+      
+      // Check authentication first
+      const { data: { user }, error: authError } = await client.auth.getUser()
+      
+      if (authError || !user) {
+        console.error('Authentication error:', authError)
+        // Redirect to login page
+        window.location.href = '/auth/login'
+        return
+      }
+
+      // Add timeout to prevent hanging
+      const fetchPromise = fetchBusinessesData(user.id)
+
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Fetch timeout')), 8000)
+      )
+
+      const data = await Promise.race([fetchPromise, timeoutPromise]) as any
+      
+      setBusinesses(data || [])
+      
+      // Auto-select business logic - optimized
+      if (!selectedBusiness && data && data.length > 0) {
+        const storedBusinessId = localStorage.getItem("selectedBusinessId")
+        if (storedBusinessId) {
+          const business = data.find((b: Business) => b.id === storedBusinessId)
+          if (business) {
+            await selectBusiness(business, false) // Don't preload on initial load
+            return
+          } else {
+            // Clean up invalid stored business ID
+            localStorage.removeItem("selectedBusinessId")
+            localStorage.removeItem("selectedBusiness")
+          }
+        }
+        
+        // Select first business if available and no stored business
+        await selectBusiness(data[0], false)
+      }
+    } catch (error: any) {
+      console.error("Error fetching businesses:", error)
+      
+      // More specific error handling
+      let errorMessage = "Failed to load businesses"
+      if (error.message.includes('timeout')) {
+        errorMessage = "Loading businesses is taking longer than expected. Please check your connection."
+      } else if (error.message.includes('not authenticated') || error.message.includes('Auth session missing')) {
+        errorMessage = "Your session has expired. Redirecting to login..."
+        toast({
+          title: "Session Expired",
+          description: "Please log in again to continue",
+          variant: "destructive"
+        })
+        // Redirect to login after a short delay
+        setTimeout(() => {
+          window.location.href = '/auth/login'
+        }, 2000)
+        return
+      } else if (error.message.includes('Failed to fetch')) {
+        errorMessage = "Unable to connect to the server. Please check your internet connection."
+      }
+      
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const selectBusiness = async (business: Business, shouldPreload = true) => {
+    setSelectedBusiness(business)
+    
+    // Only preload if explicitly requested (not on initial load)
+    if (shouldPreload) {
+      // Preload critical data in background for faster page loads
+      preloadCriticalData(business.id).catch(error => {
+        console.warn("Failed to preload data:", error)
+      })
+    }
+    
+    onBusinessChange?.(business)
+    onBusinessSelect?.(business)
+    setOpen(false)
+  }
+
+  const handleCreateBusiness = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    try {
+      setCreating(true)
+      
+      const client = getSupabaseClient()
+      if (!client) {
+        throw new Error("Service temporarily unavailable")
+      }
+
+      const { data: { user } } = await client.auth.getUser()
+      if (!user) throw new Error("User not authenticated")
+
+      const { data: newId, error } = await rpcApi.business.create(newBusinessForm)
+
+      if (error) throw error
+
+      const refreshedBusinesses = await fetchBusinessesData(user.id)
+      const createdBusiness = (refreshedBusinesses || []).find(
+        (b: any) => b.id === newId || (b.name === newBusinessForm.name && b.phone === newBusinessForm.phone)
+      )
+      if (!createdBusiness) {
+        throw new Error("Business created but not found in refreshed list")
+      }
+
+      // Add to businesses list
+      setBusinesses(refreshedBusinesses as Business[])
+
+      // Select the new business
+      await selectBusiness(createdBusiness as Business)      // Reset form
+      setNewBusinessForm({
+        name: "",
+        address: "",
+        city: "",
+        state: "",
+        pincode: "",
+        phone: "",
+        email: "",
+        gstin: "",
+        pan: ""
+      })
+      
+      setCreateDialogOpen(false)
+      
+      toast({
+        title: "Success",
+        description: "Business created successfully!"
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create business",
+        variant: "destructive"
+      })
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const resetForm = () => {
+    setNewBusinessForm({
+      name: "",
+      address: "",
+      city: "",
+      state: "",
+      pincode: "",
+      phone: "",
+      email: "",
+      gstin: "",
+      pan: ""
+    })
+  }
+
+  if (loading) {
+    return (
+      <div className={cn("flex items-center gap-2", className)}>
+        <Loader2 className="h-4 w-4 animate-spin" />
+        <span className="text-sm text-gray-600">Loading businesses...</span>
+      </div>
+    )
+  }
+
+  // Show create business prompt if no businesses exist
+  if (!loading && businesses.length === 0) {
+    return (
+      <div className={cn("flex flex-col sm:flex-row items-start sm:items-center gap-2", className)}>
+        <div className="flex items-center gap-2 text-gray-600">
+          <Building2 className="h-4 w-4" />
+          <span className="text-sm">No businesses found</span>
+        </div>
+        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+          <DialogTrigger asChild>
+            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
+              <Plus className="h-4 w-4 mr-2" />
+              Create Business
+            </Button>
+          </DialogTrigger>
+              <DialogContent className="max-w-2xl mx-4 sm:mx-auto">
+                <DialogHeader>
+                  <DialogTitle>Create New Business</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleCreateBusiness} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="name">Business Name *</Label>
+                      <Input
+                        id="name"
+                        placeholder="Enter business name"
+                        value={newBusinessForm.name}
+                        onChange={(e) => setNewBusinessForm(prev => ({ ...prev, name: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="phone">Phone *</Label>
+                      <Input
+                        id="phone"
+                        placeholder="Enter phone number"
+                        value={newBusinessForm.phone}
+                        onChange={(e) => setNewBusinessForm(prev => ({ ...prev, phone: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="Enter email (optional)"
+                        value={newBusinessForm.email}
+                        onChange={(e) => setNewBusinessForm(prev => ({ ...prev, email: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="city">City *</Label>
+                      <Input
+                        id="city"
+                        placeholder="Enter city"
+                        value={newBusinessForm.city}
+                        onChange={(e) => setNewBusinessForm(prev => ({ ...prev, city: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="state">State *</Label>
+                      <Input
+                        id="state"
+                        placeholder="Enter state"
+                        value={newBusinessForm.state}
+                        onChange={(e) => setNewBusinessForm(prev => ({ ...prev, state: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="pincode">Pincode</Label>
+                      <Input
+                        id="pincode"
+                        placeholder="Enter pincode"
+                        value={newBusinessForm.pincode}
+                        onChange={(e) => setNewBusinessForm(prev => ({ ...prev, pincode: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="address">Address</Label>
+                    <Textarea
+                      id="address"
+                      placeholder="Enter complete address"
+                      value={newBusinessForm.address}
+                      onChange={(e) => setNewBusinessForm(prev => ({ ...prev, address: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="gstin">GSTIN</Label>
+                      <Input
+                        id="gstin"
+                        placeholder="Enter GSTIN (optional)"
+                        value={newBusinessForm.gstin}
+                        onChange={(e) => setNewBusinessForm(prev => ({ ...prev, gstin: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="pan">PAN</Label>
+                      <Input
+                        id="pan"
+                        placeholder="Enter PAN (optional)"
+                        value={newBusinessForm.pan}
+                        onChange={(e) => setNewBusinessForm(prev => ({ ...prev, pan: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end space-x-3 pt-4 border-t">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => {
+                        resetForm()
+                        setCreateDialogOpen(false)
+                      }}
+                      disabled={creating}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={creating}>
+                      {creating ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Create Business
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+        </div>
+    )
+  }
+
+  return (
+    <div className={cn("flex flex-col sm:flex-row items-start sm:items-center gap-2", className)}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-full sm:w-64 justify-between"
+          >
+            {selectedBusiness ? (
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4" />
+                <span className="truncate">{selectedBusiness.name}</span>
+              </div>
+            ) : (
+              "Select business..."
+            )}
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80 p-0">
+          <Command>
+            <CommandInput placeholder="Search businesses..." />
+            <CommandList>
+              <CommandEmpty>No business found.</CommandEmpty>
+              <CommandGroup>
+                {businesses.map((business) => (
+                  <CommandItem
+                    key={business.id}
+                    value={business.name}
+                    onSelect={() => selectBusiness(business)}
+                  >
+                    <div className="flex items-center gap-2 flex-1">
+                      <Building2 className="h-4 w-4" />
+                      <div className="flex flex-col flex-1">
+                        <span className="font-medium">{business.name}</span>
+                        <span className="text-xs text-gray-500">
+                          {business.city}, {business.state}
+                        </span>
+                      </div>
+                    </div>
+                    <Check
+                      className={cn(
+                        "ml-auto h-4 w-4",
+                        selectedBusiness?.id === business.id ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm" className="w-full sm:w-auto">
+            <Plus className="h-4 w-4 mr-2" />
+            New Business
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto mx-4 sm:mx-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Create New Business
+            </DialogTitle>
+          </DialogHeader>
+          
+          <form onSubmit={handleCreateBusiness} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <Label htmlFor="name">Business Name *</Label>
+                <Input
+                  id="name"
+                  required
+                  placeholder="Enter business name"
+                  value={newBusinessForm.name}
+                  onChange={(e) => setNewBusinessForm(prev => ({ ...prev, name: e.target.value }))}
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <Label htmlFor="address">Address *</Label>
+                <Textarea
+                  id="address"
+                  required
+                  placeholder="Enter business address"
+                  value={newBusinessForm.address}
+                  onChange={(e) => setNewBusinessForm(prev => ({ ...prev, address: e.target.value }))}
+                  rows={2}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="city">City *</Label>
+                <Input
+                  id="city"
+                  required
+                  placeholder="Enter city"
+                  value={newBusinessForm.city}
+                  onChange={(e) => setNewBusinessForm(prev => ({ ...prev, city: e.target.value }))}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="state">State *</Label>
+                <Input
+                  id="state"
+                  required
+                  placeholder="Enter state"
+                  value={newBusinessForm.state}
+                  onChange={(e) => setNewBusinessForm(prev => ({ ...prev, state: e.target.value }))}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="pincode">Pincode *</Label>
+                <Input
+                  id="pincode"
+                  required
+                  placeholder="Enter pincode"
+                  value={newBusinessForm.pincode}
+                  onChange={(e) => setNewBusinessForm(prev => ({ ...prev, pincode: e.target.value }))}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="phone">Phone *</Label>
+                <Input
+                  id="phone"
+                  required
+                  placeholder="Enter phone number"
+                  value={newBusinessForm.phone}
+                  onChange={(e) => setNewBusinessForm(prev => ({ ...prev, phone: e.target.value }))}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  required
+                  placeholder="Enter email address"
+                  value={newBusinessForm.email}
+                  onChange={(e) => setNewBusinessForm(prev => ({ ...prev, email: e.target.value }))}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="gstin">GSTIN</Label>
+                <Input
+                  id="gstin"
+                  placeholder="Enter GSTIN (optional)"
+                  value={newBusinessForm.gstin}
+                  onChange={(e) => setNewBusinessForm(prev => ({ ...prev, gstin: e.target.value }))}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="pan">PAN</Label>
+                <Input
+                  id="pan"
+                  placeholder="Enter PAN (optional)"
+                  value={newBusinessForm.pan}
+                  onChange={(e) => setNewBusinessForm(prev => ({ ...prev, pan: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-4 border-t">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => {
+                  resetForm()
+                  setCreateDialogOpen(false)
+                }}
+                disabled={creating}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={creating}>
+                {creating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Business
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {selectedBusiness && (
+        <Badge variant="outline" className="text-xs mt-2 sm:mt-0">
+          <Settings className="h-3 w-3 mr-1" />
+          Active
+        </Badge>
+      )}
+    </div>
+  )
+}

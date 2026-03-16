@@ -1,0 +1,4 @@
+invoice_number,invoice_date,party_name,item_name,quantity,rate,amount,gst_amount,total_amount,payment_mode,payment_received,notes
+INV001,2025-01-15,ABC Company,Sample Product,10,100,1000,180,1180,Cash,1180,Test sales entry
+INV002,2025-01-16,XYZ Corp,Another Product,5,200,1000,180,1180,UPI,500,Partial payment
+INV003,2025-01-17,New Customer,Unknown Item,2,150,300,54,354,Credit Card,0,Credit sale

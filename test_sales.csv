@@ -1,0 +1,2 @@
+invoice_number,invoice_date,party_name,state,address,item_name,quantity,rate,amount,gst_amount,total_amount,notes
+INV001,2024-01-15,ABC Company,Maharashtra,123 Main St Mumbai,Sample Product,10,100,1000,180,1180,Sample sales entry
