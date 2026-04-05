@@ -279,9 +279,18 @@ export default function PurchaseEntry() {
         phone: newSupplier.phone.trim(),
         type: "Creditor",
       })
-      if (result.error) throw new Error(result.error)
-      const created = result.data as Party
-      setParties(prev => [...prev, created])
+      if (result.error) throw new Error(typeof result.error === 'string' ? result.error : result.error?.message || 'Failed to add supplier')
+      const createdId = result.data?.[0]?.id
+      if (!createdId) throw new Error('Failed to create supplier: no ID returned')
+      
+      // Fetch updated parties list to get the full object
+      const updatedParties = await fetchOptimizedParties(businessId)
+      const creditorParties = updatedParties.filter((p: Party) => p.type === "Creditor")
+      setParties(creditorParties)
+      
+      const created = creditorParties.find((p: Party) => p.id === createdId)
+      if (!created) throw new Error('Failed to find created supplier')
+      
       setFormData(prev => ({
         ...prev,
         party_id: created.id,
