@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect } from "react"
 import { fetchInvoices, queryBuilder, getCurrentUser } from "@/lib/supabase"
@@ -301,7 +301,7 @@ export default function ReportsPage() {
 
   return (
     <AuthenticatedLayout>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
         <div className="p-6 space-y-8">
           {/* Header */}
           <div className="flex justify-between items-center">
@@ -356,7 +356,7 @@ export default function ReportsPage() {
 
           {/* Key Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-0 shadow-lg">
+            <Card className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-semibold text-blue-700">Total Sales</CardTitle>
                 <TrendingUp className="h-4 w-4 text-blue-600" />
@@ -367,7 +367,7 @@ export default function ReportsPage() {
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-red-50 to-red-100 border-0 shadow-lg">
+            <Card className="bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-semibold text-red-700">Total Purchases</CardTitle>
                 <TrendingDown className="h-4 w-4 text-red-600" />
@@ -378,7 +378,7 @@ export default function ReportsPage() {
               </CardContent>
             </Card>
 
-            <Card className={`bg-gradient-to-br ${netGSTLiability >= 0 ? 'from-green-50 to-green-100' : 'from-orange-50 to-orange-100'} border-0 shadow-lg`}>
+            <Card className={`${netGSTLiability >= 0 ? 'bg-emerald-50 dark:bg-emerald-950/20' : 'bg-amber-50 dark:bg-amber-950/20'} border shadow-sm`}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className={`text-sm font-semibold ${netGSTLiability >= 0 ? 'text-green-700' : 'text-orange-700'}`}>
                   Net GST Liability
@@ -395,7 +395,7 @@ export default function ReportsPage() {
               </CardContent>
             </Card>
 
-            <Card className={`bg-gradient-to-br ${netCashFlow >= 0 ? 'from-purple-50 to-purple-100' : 'from-gray-50 to-gray-100'} border-0 shadow-lg`}>
+            <Card className={`${netCashFlow >= 0 ? 'bg-violet-50 dark:bg-violet-950/20' : 'bg-gray-50 dark:bg-gray-800/50'} border shadow-sm`}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className={`text-sm font-semibold ${netCashFlow >= 0 ? 'text-purple-700' : 'text-gray-700'}`}>
                   Net Cash Flow
@@ -653,3 +653,5 @@ export default function ReportsPage() {
     </AuthenticatedLayout>
   )
 }
+
+

@@ -42,6 +42,12 @@ type PrintInvoice = {
     email: string
     gstin?: string
     pan?: string
+    category?: string
+    bank_name?: string
+    account_no?: string
+    ifsc_code?: string
+    branch?: string
+    terms_conditions?: string
   }
   party: {
     name: string
@@ -164,6 +170,12 @@ export default function PrintPage() {
             email: businessData.email || '',
             gstin: businessData.gstin || '',
             pan: businessData.pan || '',
+            category: businessData.category || '',
+            bank_name: businessData.bank_name || '',
+            account_no: businessData.account_no || '',
+            ifsc_code: businessData.ifsc_code || '',
+            branch: businessData.branch_name || businessData.branch || '',
+            terms_conditions: businessData.terms_conditions || '',
           },
           party: {
             name: invoiceData.party_name || partyData?.name || 'Unknown Party',

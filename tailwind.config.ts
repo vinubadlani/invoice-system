@@ -85,11 +85,17 @@ const config: Config = {
   				to: {
   					height: '0'
   				}
+  			},
+  			progress: {
+  				'0%': { width: '0%', marginLeft: '0%' },
+  				'40%': { width: '60%', marginLeft: '20%' },
+  				'100%': { width: '0%', marginLeft: '100%' }
   			}
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
-  			'accordion-up': 'accordion-up 0.2s ease-out'
+  			'accordion-up': 'accordion-up 0.2s ease-out',
+  			'progress': 'progress 1.4s ease-in-out infinite'
   		}
   	}
   },

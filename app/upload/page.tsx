@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useCallback, useEffect } from "react"
 import Papa from "papaparse"
@@ -898,7 +898,7 @@ export default function UploadPage() {
 
           <TabsContent value="upload">
             <Card className="border-2 shadow-lg">
-              <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
+              <CardHeader className="border-b">
                 <CardTitle className="flex items-center text-xl">
                   <Upload className="h-6 w-6 mr-3 text-blue-600" />
                   Upload Data Files
@@ -1586,3 +1586,4 @@ export default function UploadPage() {
     </AuthenticatedLayout>
   )
 }
+

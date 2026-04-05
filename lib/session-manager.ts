@@ -3,6 +3,7 @@
 export class SessionManager {
   private static instance: SessionManager
   private currentUserId: string | null = null
+  private readonly USER_KEY = 'session-user-id'
 
   static getInstance(): SessionManager {
     if (!SessionManager.instance) {
@@ -12,24 +13,61 @@ export class SessionManager {
   }
 
   setCurrentUser(userId: string | null): void {
-    console.log(`Session: User changed from ${this.currentUserId} to ${userId}`)
-    
-    // If user changed, clear all data
-    if (this.currentUserId !== userId) {
+    // Use persisted user ID to detect actual user switches across page reloads
+    const persistedUserId = this.getPersistedUserId()
+    const previousUserId = this.currentUserId ?? persistedUserId
+
+    console.log(`Session: User changed from ${previousUserId} to ${userId}`)
+
+    if (userId === null) {
+      // Logout — clear everything
       this.clearUserData()
+      this.currentUserId = null
+      this.removePersistedUserId()
+    } else if (previousUserId !== null && previousUserId !== userId) {
+      // Different user logged in — clear old user data
+      this.clearUserData()
+      this.currentUserId = userId
+      this.persistUserId(userId)
+    } else {
+      // Same user or first-time login — keep business preference, only update in-memory ID
+      this.currentUserId = userId
+      this.persistUserId(userId)
     }
-    
-    this.currentUserId = userId
   }
 
   getCurrentUser(): string | null {
     return this.currentUserId
   }
 
+  private getPersistedUserId(): string | null {
+    try {
+      return localStorage.getItem(this.USER_KEY)
+    } catch {
+      return null
+    }
+  }
+
+  private persistUserId(userId: string): void {
+    try {
+      localStorage.setItem(this.USER_KEY, userId)
+    } catch {
+      // ignore
+    }
+  }
+
+  private removePersistedUserId(): void {
+    try {
+      localStorage.removeItem(this.USER_KEY)
+    } catch {
+      // ignore
+    }
+  }
+
   clearUserData(): void {
     console.log('SessionManager: Clearing user data')
     
-    // Clear localStorage
+    // Clear localStorage — business preference is handled separately in setCurrentUser
     const keysToRemove = [
       'selectedBusiness',
       'selectedBusinessId', 
@@ -101,7 +139,11 @@ export class SessionManager {
 
   // Check if current session is valid for a specific user
   isSessionValid(userId: string): boolean {
-    return this.currentUserId === userId
+    if (this.currentUserId) {
+      return this.currentUserId === userId
+    }
+    // Fall back to persisted value (handles page reloads before setCurrentUser is called)
+    return this.getPersistedUserId() === userId
   }
 }
 

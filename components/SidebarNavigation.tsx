@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation"
 import { useState } from "react"
 import { signOut } from "@/lib/auth"
 import { useAuth } from "./AuthProvider"
-import BusinessSelector from "./BusinessSelector"
 import {
   Menu,
   X,
@@ -16,7 +15,6 @@ import {
   ShoppingBag,
   BookOpen,
   CreditCard,
-  Printer,
   BarChart3,
   Building2,
   Settings,
@@ -30,9 +28,8 @@ import {
   ChevronRight,
   SwitchCamera,
   Receipt,
-  MessageCircle,
+  ChevronDown,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,25 +38,24 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useTheme } from "next-themes"
-import Image from "next/image"
 import { cn } from "@/lib/utils"
 
 const navigationSections = [
   {
-    title: "MAIN",
+    title: "Main",
     items: [
       { name: "Dashboard", href: "/dashboard", icon: Home },
     ]
   },
   {
-    title: "MASTERS",
+    title: "Masters",
     items: [
       { name: "Party Master", href: "/party", icon: Users },
       { name: "Item Master", href: "/item", icon: Package },
     ]
   },
   {
-    title: "TRANSACTIONS",
+    title: "Transactions",
     items: [
       { name: "Sales Entry", href: "/sales-entry", icon: ShoppingCart },
       { name: "Purchase Entry", href: "/purchase-entry", icon: ShoppingBag },
@@ -70,7 +66,7 @@ const navigationSections = [
     ]
   },
   {
-    title: "REPORTS & TOOLS",
+    title: "Reports",
     items: [
       { name: "Ledger", href: "/ledger", icon: BookOpen },
       { name: "Reports", href: "/reports", icon: BarChart3 },
@@ -78,7 +74,7 @@ const navigationSections = [
     ]
   },
   {
-    title: "MANAGEMENT",
+    title: "System",
     items: [
       { name: "Upload Data", href: "/upload", icon: Upload },
       { name: "Settings", href: "/settings", icon: Settings },
@@ -97,7 +93,6 @@ export default function SidebarNavigation({ businessName, onBusinessChange }: Si
   const { theme, setTheme } = useTheme()
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isMobileOpen, setIsMobileOpen] = useState(false)
-  // const [showBusinessSelector, setShowBusinessSelector] = useState(false)
 
   const handleSignOut = async () => {
     try {
@@ -109,149 +104,68 @@ export default function SidebarNavigation({ businessName, onBusinessChange }: Si
 
   return (
     <>
-      {/* Mobile Overlay */}
+      {/* Mobile overlay */}
       {isMobileOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+        <div
+          className="fixed inset-0 bg-black/40 z-40 lg:hidden"
           onClick={() => setIsMobileOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <div className={cn(
-        "fixed left-0 top-0 z-50 h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 flex flex-col",
-        isCollapsed ? "w-20" : "w-80",
+        "fixed left-0 top-0 z-50 h-full bg-white dark:bg-gray-950 border-r border-gray-200 dark:border-gray-800 transition-all duration-200 flex flex-col",
+        isCollapsed ? "w-[60px]" : "w-64",
         isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       )}>
-        {/* Header with Bigger Centered Logo */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            {!isCollapsed && (
-              <div className="w-full flex flex-col items-center">
-                <div className="relative w-32 h-32 mb-4">
-                  <Image
-                    src="/logo.png"
-                    alt="Hisab Kitaab Logo"
-                    width={512}
-                    height={128}
-                    className="dark:hidden object-contain"
-                    priority
-                  />
-                  <Image
-                    src="/logo2.png"
-                    alt="Hisab Kitaab Logo"
-                    width={512}
-                    height={128}
-                    className="hidden dark:block object-contain"
-                    priority
-                  />
-                </div>
-                <div className="flex items-center justify-center gap-2 text-gray-500 dark:text-gray-400 mb-2">
-                  <Store className="h-4 w-4" />
-                  <p className="text-sm font-medium truncate max-w-[180px]">
-                    {businessName || "Business Management"}
-                  </p>
-                </div>
-                {/* Business Switch Button - Commented out for now */}
-                {/* <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs px-2 py-1 h-7"
-                  onClick={() => setShowBusinessSelector(true)}
-                >
-                  <SwitchCamera className="h-3 w-3 mr-1" />
-                  Switch Business
-                </Button> */}
-              </div>
-            )}
-            
-            {isCollapsed && (
-              <div className="relative w-12 h-12 mx-auto">
-                <Image
-                  src="/logo.png"
-                  alt="Logo"
-                  width={48}
-                  height={48}
-                  className="dark:hidden object-contain"
-                  priority
-                />
-                <Image
-                  src="/logo2.png"
-                  alt="Logo"
-                  width={48}
-                  height={48}
-                  className="hidden dark:block object-contain"
-                  priority
-                />
-              </div>
-            )}
 
-            {/* Collapse Toggle - Desktop Only */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className={cn(
-                "hidden lg:flex p-1.5 absolute",
-                isCollapsed ? "top-4 right-4" : "top-6 right-6"
-              )}
-              onClick={() => setIsCollapsed(!isCollapsed)}
-            >
-              {isCollapsed ? (
-                <ChevronRight className="h-4 w-4" />
-              ) : (
-                <ChevronLeft className="h-4 w-4" />
-              )}
-            </Button>
-
-            {/* Close Button - Mobile Only */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="lg:hidden p-1.5 absolute top-4 right-4"
-              onClick={() => setIsMobileOpen(false)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
+        {/* Brand */}
+        <div className={cn(
+          "flex items-center border-b border-gray-200 dark:border-gray-800 h-16 shrink-0 px-4",
+          isCollapsed ? "justify-center" : "gap-3"
+        )}>
+          <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
+            <Store className="h-4 w-4 text-white" />
           </div>
+          {!isCollapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-gray-900 dark:text-white truncate">हिसाब-किताब</p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">{businessName || "Select Business"}</p>
+            </div>
+          )}
         </div>
 
-        {/* Navigation Items with Sections */}
-        <div className="flex-1 overflow-y-auto py-6">
-          <nav className="px-4 space-y-6">
+        {/* Nav */}
+        <div className="flex-1 overflow-y-auto py-4 px-2.5">
+          <nav className="space-y-4">
             {navigationSections.map((section) => (
               <div key={section.title}>
                 {!isCollapsed && (
-                  <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3 px-3">
+                  <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1 px-2">
                     {section.title}
-                  </h3>
+                  </p>
                 )}
-                <div className="space-y-1">
+                {isCollapsed && <div className="border-t border-gray-100 dark:border-gray-800 my-1" />}
+                <div className="space-y-0.5">
                   {section.items.map((item) => {
                     const Icon = item.icon
                     const isActive = pathname === item.href
-                    
                     return (
                       <Link
                         key={item.name}
                         href={item.href}
                         onClick={() => setIsMobileOpen(false)}
+                        title={isCollapsed ? item.name : undefined}
                         className={cn(
-                          "flex items-center px-3 py-3 rounded-lg text-sm font-medium transition-all duration-200 group relative",
+                          "flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm font-medium transition-all duration-150",
                           isActive
-                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
-                            : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800",
-                          isCollapsed ? "justify-center" : "justify-start"
+                            ? "bg-blue-600 text-white shadow-sm"
+                            : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/60",
+                          isCollapsed && "justify-center px-0"
                         )}
                       >
-                        <Icon className={cn("h-5 w-5", isCollapsed ? "mx-0" : "mr-3")} />
+                        <Icon className={cn("shrink-0", isCollapsed ? "h-5 w-5" : "h-4 w-4")} />
                         {!isCollapsed && <span>{item.name}</span>}
-                        
-                        {/* Tooltip for collapsed state */}
-                        {isCollapsed && (
-                          <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
-                            {item.name}
-                          </div>
-                        )}
                       </Link>
                     )
                   })}
@@ -262,156 +176,87 @@ export default function SidebarNavigation({ businessName, onBusinessChange }: Si
         </div>
 
         {/* Footer */}
-        <div className="border-t border-gray-200 dark:border-gray-700 p-4">
-          <div className={cn("space-y-2", isCollapsed ? "flex flex-col items-center" : "")}>
-            {/* Theme Toggle */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className={cn(
-                "dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800 group relative",
-                isCollapsed ? "w-12 h-12 p-0" : "w-full justify-start px-3 py-3"
-              )}
-            >
-              <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-              <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-              {!isCollapsed && <span className="ml-3">Toggle Theme</span>}
-              
-              {/* Tooltip for collapsed state */}
-              {isCollapsed && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
-                  Toggle Theme
-                </div>
-              )}
-            </Button>
-
-            {/* User Menu */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "dark:hover:bg-gray-800 group relative",
-                    isCollapsed ? "w-12 h-12 p-0" : "w-full justify-start px-3 py-3"
-                  )}
-                >
-                  <div className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-full w-6 h-6 flex items-center justify-center text-xs">
-                    {user?.email?.charAt(0).toUpperCase()}
-                  </div>
-                  {!isCollapsed && (
-                    <span className="ml-3 truncate text-sm">{user?.email}</span>
-                  )}
-                  
-                  {/* Tooltip for collapsed state */}
-                  {isCollapsed && (
-                    <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
-                      {user?.email}
-                    </div>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent 
-                align="end" 
-                side={isCollapsed ? "right" : "top"}
-                className="w-48 dark:bg-gray-800 dark:border-gray-700"
-              >
-                <div className="px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300">
-                  {user?.email}
-                </div>
-                <DropdownMenuSeparator className="dark:bg-gray-700" />
-                <DropdownMenuItem 
-                  onClick={() => {
-                    // Clear selected business to trigger business selector
-                    localStorage.removeItem('selectedBusinessId');
-                    window.location.reload();
-                  }}
-                  className="dark:text-gray-300 dark:hover:bg-gray-700 dark:focus:bg-gray-700"
-                >
-                  <SwitchCamera className="h-4 w-4 mr-2" />
-                  Switch Business
-                </DropdownMenuItem>
-                <DropdownMenuSeparator className="dark:bg-gray-700" />
-                <DropdownMenuItem 
-                  onClick={handleSignOut} 
-                  className="dark:text-gray-300 dark:hover:bg-gray-700 dark:focus:bg-gray-700"
-                >
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Sign Out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile Menu Button - Top Bar */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-        <div className="flex items-center justify-between">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsMobileOpen(true)}
-            className="p-2"
+        <div className="border-t border-gray-200 dark:border-gray-800 p-2.5 space-y-0.5">
+          {/* Theme */}
+          <button
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            title="Toggle theme"
+            className={cn(
+              "relative flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-colors w-full",
+              isCollapsed && "justify-center px-0"
+            )}
           >
-            <Menu className="h-5 w-5" />
-          </Button>
-          
-          <div className="flex items-center space-x-2">
-            <div className="relative w-8 h-8">
-              <Image
-                src="/logo.png"
-                alt="Logo"
-                width={32}
-                height={32}
-                className="dark:hidden object-contain"
-                priority
-              />
-              <Image
-                src="/logo2.png"
-                alt="Logo"
-                width={32}
-                height={32}
-                className="hidden dark:block object-contain"
-                priority
-              />
-            </div>
-            <span className="font-semibold text-gray-900 dark:text-white">Hisab Kitaab</span>
-          </div>
+            <Sun className="h-4 w-4 shrink-0 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+            <Moon className="absolute h-4 w-4 shrink-0 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 left-[10px]" />
+            {!isCollapsed && <span className="pl-0">Toggle Theme</span>}
+          </button>
 
-          <div className="w-8" /> {/* Spacer for balance */}
+          {/* User */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className={cn(
+                "flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-colors w-full",
+                isCollapsed && "justify-center px-0"
+              )}>
+                <div className="h-6 w-6 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 flex items-center justify-center text-xs font-bold shrink-0">
+                  {user?.email?.charAt(0).toUpperCase()}
+                </div>
+                {!isCollapsed && (
+                  <>
+                    <span className="flex-1 text-left truncate text-xs">{user?.email}</span>
+                    <ChevronDown className="h-3 w-3 shrink-0" />
+                  </>
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" side={isCollapsed ? "right" : "top"} className="w-52">
+              <div className="px-2 py-1.5 text-xs text-muted-foreground truncate">{user?.email}</div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  localStorage.removeItem("selectedBusinessId")
+                  localStorage.removeItem("selectedBusiness")
+                  window.location.reload()
+                }}
+              >
+                <SwitchCamera className="h-4 w-4 mr-2" />
+                Switch Business
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleSignOut} className="text-red-600 focus:text-red-600">
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign Out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
-      {/* Business Selector Modal - Commented out for now */}
-      {/* {showBusinessSelector && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Switch Business
-              </h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowBusinessSelector(false)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <BusinessSelector 
-              onBusinessSelect={(business) => {
-                setShowBusinessSelector(false)
-                onBusinessChange?.()
-                // Force page reload to update business context
-                window.location.reload()
-              }}
-              className="w-full"
-            />
-          </div>
-        </div>
-      )} */}
+      {/* Collapse toggle desktop only */}
+      <button
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className={cn(
+          "hidden lg:flex fixed top-[52px] z-50 h-6 w-6 rounded-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 items-center justify-center shadow-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200",
+          isCollapsed ? "left-[47px]" : "left-[241px]"
+        )}
+      >
+        {isCollapsed
+          ? <ChevronRight className="h-3 w-3 text-gray-500" />
+          : <ChevronLeft className="h-3 w-3 text-gray-500" />
+        }
+      </button>
+
+      {/* Mobile top bar */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 h-14 flex items-center px-4 justify-between">
+        <button
+          onClick={() => setIsMobileOpen(true)}
+          className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
+        >
+          <Menu className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+        </button>
+        <span className="font-semibold text-sm text-gray-900 dark:text-white">हिसाब-किताब</span>
+        <div className="w-8" />
+      </div>
     </>
   )
 }

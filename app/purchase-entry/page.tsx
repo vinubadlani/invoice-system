@@ -1,9 +1,9 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { fetchParties, fetchItems, insertData, getCurrentUser, updateData, getSupabaseClient } from "@/lib/supabase"
 import { useOptimizedData } from "@/lib/cache-store"
-import { Plus, Trash2, Save, Package, Calendar, User, MapPin, FileText, Calculator, DollarSign, Loader2, RefreshCw, CreditCard, Upload, Download, CheckCircle, XCircle, AlertCircle, AlertTriangle, Edit } from "lucide-react"
+import { Plus, Trash2, Save, Package, Calendar, User, MapPin, FileText, Calculator, DollarSign, Loader2, RefreshCw, CreditCard, Upload, Download, CheckCircle, XCircle, AlertCircle, AlertTriangle, Edit, UserPlus } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -86,6 +86,11 @@ export default function PurchaseEntry() {
 
   // Bulk upload states
   const [showBulkUpload, setShowBulkUpload] = useState(false)
+
+  // Add supplier inline states
+  const [showAddSupplier, setShowAddSupplier] = useState(false)
+  const [newSupplier, setNewSupplier] = useState({ name: "", gstin: "", state: "", address: "", phone: "" })
+  const [savingSupplier, setSavingSupplier] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string; details?: any } | null>(null)
@@ -258,7 +263,48 @@ export default function PurchaseEntry() {
     }
   }
 
+  const handleSaveNewSupplier = async () => {
+    if (!newSupplier.name.trim()) {
+      toast({ title: "Error", description: "Supplier name is required", variant: "destructive" })
+      return
+    }
+    setSavingSupplier(true)
+    try {
+      const result = await insertData("parties", {
+        business_id: businessId,
+        name: newSupplier.name.trim(),
+        gstin: newSupplier.gstin.trim(),
+        state: newSupplier.state.trim(),
+        address: newSupplier.address.trim(),
+        phone: newSupplier.phone.trim(),
+        type: "Creditor",
+      })
+      if (result.error) throw new Error(result.error)
+      const created = result.data as Party
+      setParties(prev => [...prev, created])
+      setFormData(prev => ({
+        ...prev,
+        party_id: created.id,
+        party_name: created.name,
+        gstin: created.gstin || "",
+        state: created.state || "",
+        address: created.address || "",
+      }))
+      setShowAddSupplier(false)
+      toast({ title: "Supplier added", description: `"${created.name}" has been created and selected.` })
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to create supplier", variant: "destructive" })
+    } finally {
+      setSavingSupplier(false)
+    }
+  }
+
   const handlePartyChange = (partyId: string) => {
+    if (partyId === "__add_new__") {
+      setNewSupplier({ name: "", gstin: "", state: "", address: "", phone: "" })
+      setShowAddSupplier(true)
+      return
+    }
     const party = parties.find((p) => p.id === partyId)
     if (party) {
       setFormData({
@@ -953,14 +999,14 @@ export default function PurchaseEntry() {
 
   return (
     <AuthenticatedLayout>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
         <div className="p-6 space-y-8">
-          <div className="relative overflow-hidden bg-gradient-to-r from-emerald-600 via-green-600 to-emerald-800 rounded-2xl shadow-2xl">
-            <div className="absolute inset-0 bg-gradient-to-r from-emerald-600/20 to-green-600/20 backdrop-blur-sm"></div>
+          <div className="relative overflow-hidden bg-emerald-700 rounded-2xl shadow-2xl">
+            <div className="absolute inset-0  backdrop-blur-sm"></div>
             <div className="relative p-8 text-white">
               <div className="flex justify-between items-center">
                 <div>
-                  <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-white to-emerald-100 bg-clip-text text-transparent">
+                  <h1 className="text-4xl font-bold mb-2 ">
                     {editId ? 'Edit Purchase' : 'Purchase Entry'}
                   </h1>
                   <p className="text-emerald-100 text-lg opacity-90">
@@ -990,7 +1036,7 @@ export default function PurchaseEntry() {
           <form onSubmit={handleSubmit} className="space-y-8">
             {/* Purchase Details Card */}
             <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-emerald-50 to-green-50 border-b border-emerald-100">
+              <CardHeader className="bg-emerald-50 dark:bg-emerald-950/20 border-b border-emerald-100">
                 <CardTitle className="text-xl font-bold text-emerald-900 flex items-center gap-2">
                   <FileText className="h-5 w-5" />
                   Purchase Details
@@ -1039,6 +1085,11 @@ export default function PurchaseEntry() {
                         <SelectValue placeholder="Select Supplier" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="__add_new__">
+                          <span className="flex items-center gap-2 text-blue-600 font-medium">
+                            <UserPlus className="h-4 w-4" /> Add New Supplier
+                          </span>
+                        </SelectItem>
                         {parties
                           .filter((p) => p.type === "Creditor")
                           .map((party) => (
@@ -1048,6 +1099,78 @@ export default function PurchaseEntry() {
                           ))}
                       </SelectContent>
                     </Select>
+
+                  {/* Add New Supplier Dialog */}
+                  <Dialog open={showAddSupplier} onOpenChange={setShowAddSupplier}>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                          <UserPlus className="h-5 w-5 text-blue-600" />
+                          Add New Supplier
+                        </DialogTitle>
+                      </DialogHeader>
+                      <div className="grid gap-3 py-2">
+                        <div>
+                          <Label className="text-sm font-medium">Name *</Label>
+                          <Input
+                            className="mt-1"
+                            placeholder="Supplier name"
+                            value={newSupplier.name}
+                            onChange={e => setNewSupplier(prev => ({ ...prev, name: e.target.value }))}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-sm font-medium">Phone</Label>
+                            <Input
+                              className="mt-1"
+                              placeholder="Phone number"
+                              value={newSupplier.phone}
+                              onChange={e => setNewSupplier(prev => ({ ...prev, phone: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium">GSTIN</Label>
+                            <Input
+                              className="mt-1"
+                              placeholder="GST number"
+                              value={newSupplier.gstin}
+                              onChange={e => setNewSupplier(prev => ({ ...prev, gstin: e.target.value }))}
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-sm font-medium">State</Label>
+                            <Input
+                              className="mt-1"
+                              placeholder="State"
+                              value={newSupplier.state}
+                              onChange={e => setNewSupplier(prev => ({ ...prev, state: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium">Address</Label>
+                            <Input
+                              className="mt-1"
+                              placeholder="Address"
+                              value={newSupplier.address}
+                              onChange={e => setNewSupplier(prev => ({ ...prev, address: e.target.value }))}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowAddSupplier(false)} disabled={savingSupplier}>
+                          Cancel
+                        </Button>
+                        <Button onClick={handleSaveNewSupplier} disabled={savingSupplier}>
+                          {savingSupplier ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                          Save Supplier
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                   </div>
 
                   <div className="space-y-2">
@@ -1109,7 +1232,7 @@ export default function PurchaseEntry() {
 
             {/* Items Card */}
             <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100">
+              <CardHeader className="border-b">
                 <div className="flex justify-between items-center">
                   <div>
                     <CardTitle className="text-xl font-bold text-blue-900 flex items-center gap-2">
@@ -1121,7 +1244,7 @@ export default function PurchaseEntry() {
                   <Button 
                     type="button" 
                     onClick={addNewItem} 
-                    className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-lg"
+                    className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Item
@@ -1131,7 +1254,7 @@ export default function PurchaseEntry() {
               <CardContent className="p-8">
                 <div className="overflow-x-auto bg-slate-50 rounded-xl border border-slate-200">
                   <table className="min-w-full">
-                    <thead className="bg-gradient-to-r from-slate-100 to-slate-200">
+                    <thead className="bg-gray-100 dark:bg-gray-800">
                       <tr>
                         <th className="text-left py-4 px-4 text-sm font-bold text-slate-700">S.No</th>
                         <th className="text-left py-4 px-4 text-sm font-bold text-slate-700">Item Name</th>
@@ -1239,7 +1362,7 @@ export default function PurchaseEntry() {
 
             {/* Totals Card */}
             <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 border-b border-purple-100">
+              <CardHeader className="bg-violet-50 dark:bg-violet-950/20 border-b border-purple-100">
                 <CardTitle className="text-xl font-bold text-purple-900 flex items-center gap-2">
                   <Calculator className="h-5 w-5" />
                   Purchase Summary
@@ -1250,21 +1373,21 @@ export default function PurchaseEntry() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold text-slate-700">Subtotal</Label>
-                    <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
+                    <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
                       <div className="text-lg font-bold text-blue-700">₹{totals.subtotal.toFixed(2)}</div>
                     </div>
                   </div>
 
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold text-slate-700">Total Tax</Label>
-                    <div className="p-3 bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-lg">
+                    <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 rounded-lg">
                       <div className="text-lg font-bold text-amber-700">₹{totals.total_tax.toFixed(2)}</div>
                     </div>
                   </div>
 
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold text-slate-700">Net Total</Label>
-                    <div className="p-3 bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 rounded-lg">
+                    <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 rounded-lg">
                       <div className="text-xl font-bold text-emerald-700">₹{totals.net_total.toFixed(2)}</div>
                     </div>
                   </div>
@@ -1285,8 +1408,8 @@ export default function PurchaseEntry() {
                     <Label className="text-sm font-semibold text-slate-700">Balance Due</Label>
                     <div className={`p-3 border rounded-lg ${
                       totals.balance_due > 0 
-                        ? 'bg-gradient-to-r from-red-50 to-rose-50 border-red-200' 
-                        : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'
+                        ? 'bg-red-50 dark:bg-red-950/20 border-red-200' 
+                        : 'bg-emerald-50 dark:bg-emerald-950/20 border-green-200'
                     }`}>
                       <div className={`text-xl font-bold ${
                         totals.balance_due > 0 ? 'text-red-700' : 'text-green-700'
@@ -1304,7 +1427,7 @@ export default function PurchaseEntry() {
               <Button 
                 type="submit" 
                 disabled={saving}
-                className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white px-8 py-3 text-lg font-semibold shadow-xl"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 text-lg font-semibold shadow-xl"
               >
                 {saving ? (
                   <>
@@ -1338,7 +1461,7 @@ export default function PurchaseEntry() {
 
           <div className="space-y-6">
             {/* Instructions */}
-            <div className="bg-gradient-to-r from-emerald-50 to-green-50 p-6 rounded-xl border border-emerald-200">
+            <div className="bg-emerald-50 dark:bg-emerald-950/20 p-6 rounded-xl border border-emerald-200">
               <h4 className="font-semibold text-emerald-900 mb-3 flex items-center gap-2">
                 <AlertCircle className="h-5 w-5" />
                 How it works:
@@ -1373,7 +1496,7 @@ export default function PurchaseEntry() {
             </div>
 
             {/* Template Download */}
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gradient-to-br from-gray-50 to-slate-50 hover:from-gray-100 hover:to-slate-100 transition-all duration-200">
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gray-50 hover:bg-gray-100 dark:bg-gray-800/50 dark:hover:bg-gray-800 transition-all duration-200">
               <div className="bg-gray-100 rounded-full p-4 w-20 h-20 mx-auto mb-4 flex items-center justify-center">
                 <FileText className="h-10 w-10 text-gray-600" />
               </div>
@@ -1395,7 +1518,7 @@ export default function PurchaseEntry() {
             </div>
 
             {/* File Upload */}
-            <div className="border-2 border-dashed border-blue-300 rounded-lg p-8 text-center bg-gradient-to-br from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-all duration-200">
+            <div className="border-2 border-dashed border-blue-300 rounded-lg p-8 text-center bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/20 dark:hover:bg-blue-950/40 transition-all duration-200">
               <div className="bg-blue-100 rounded-full p-4 w-20 h-20 mx-auto mb-4 flex items-center justify-center">
                 <Upload className="h-10 w-10 text-blue-600" />
               </div>
@@ -1698,3 +1821,5 @@ export default function PurchaseEntry() {
     </AuthenticatedLayout>
   )
 }
+
+

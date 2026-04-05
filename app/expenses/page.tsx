@@ -405,7 +405,7 @@ export default function Expenses() {
 
   return (
     <AuthenticatedLayout>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
         <div className="p-6 space-y-8">
           {/* Header */}
           <div className="flex justify-between items-center">
@@ -510,7 +510,7 @@ export default function Expenses() {
 
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-0 shadow-lg">
+            <Card className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-semibold text-blue-700">Total Expenses</CardTitle>
                 <DollarSign className="h-4 w-4 text-blue-600" />
@@ -521,7 +521,7 @@ export default function Expenses() {
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-green-50 to-green-100 border-0 shadow-lg">
+            <Card className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-semibold text-green-700">This Month</CardTitle>
                 <Calendar className="h-4 w-4 text-green-600" />
@@ -532,7 +532,7 @@ export default function Expenses() {
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-0 shadow-lg">
+            <Card className="bg-violet-50 dark:bg-violet-950/30 border border-violet-100 dark:border-violet-900">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-semibold text-purple-700">Top Category</CardTitle>
                 <TrendingUp className="h-4 w-4 text-purple-600" />
@@ -547,7 +547,7 @@ export default function Expenses() {
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-0 shadow-lg">
+            <Card className="bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-semibold text-orange-700">Total Records</CardTitle>
                 <Receipt className="h-4 w-4 text-orange-600" />
@@ -764,3 +764,6 @@ export default function Expenses() {
     </AuthenticatedLayout>
   )
 }
+
+
+

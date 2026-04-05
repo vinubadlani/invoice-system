@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import React, { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -286,7 +286,7 @@ export default function InvoiceDownloadPage() {
       <div className="container mx-auto p-6">
         {/* Invoice Summary */}
         <Card className="mb-8 bg-white shadow-lg">
-          <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50">
+          <CardHeader className="bg-gray-50 dark:bg-gray-800/50">
             <CardTitle className="text-xl text-gray-800">Invoice Summary</CardTitle>
           </CardHeader>
           <CardContent className="p-6">
@@ -315,7 +315,7 @@ export default function InvoiceDownloadPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           {INVOICE_TEMPLATES.map((template) => (
             <Card key={template.id} className="overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 bg-white border-0">
-              <CardHeader className={`bg-gradient-to-r from-${template.color}-50 to-${template.color}-100 border-b`}>
+              <CardHeader className={`bg-${template.color}-50 dark:bg-${template.color}-950/20 border-b`}>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-xl text-gray-800">{template.name}</CardTitle>
                   <div className={`px-3 py-1 rounded-full text-xs font-medium bg-${template.color}-200 text-${template.color}-800`}>
@@ -389,7 +389,7 @@ export default function InvoiceDownloadPage() {
         {/* Full Preview Section */}
         {selectedTemplate && (
           <Card className="bg-white shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100">
+            <CardHeader className="bg-gray-50 dark:bg-gray-800/50">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xl text-gray-800">
                   Full Preview: {INVOICE_TEMPLATES.find(t => t.id === selectedTemplate)?.name}
@@ -429,3 +429,5 @@ export default function InvoiceDownloadPage() {
     </div>
   )
 }
+
+

@@ -98,6 +98,7 @@ export default function SalesEntry() {
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null)
   const [itemSearchOpen, setItemSearchOpen] = useState(false)
   const [itemSearchValue, setItemSearchValue] = useState("")
+  const [itemDraftInputs, setItemDraftInputs] = useState<Record<string, { rate: string; qty: string }>>({})
   const { toast } = useToast()
 
   // Bulk upload states
@@ -116,6 +117,7 @@ export default function SalesEntry() {
     payment_received: "",
     round_off: "",
   })
+  const [invoiceNoError, setInvoiceNoError] = useState<string>("")
 
   const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([])
   const [currentItem, setCurrentItem] = useState({
@@ -283,6 +285,10 @@ export default function SalesEntry() {
     }
 
     setInvoiceItems(prev => [...prev, newItem])
+    setItemDraftInputs(prev => ({
+      ...prev,
+      [newItem.id]: { rate: rate.toString(), qty: qty.toString() },
+    }))
     setCurrentItem({ item_id: "", qty: "1", rate: "" })
     setItemSearchValue("")
     setItemSearchOpen(false)
@@ -290,9 +296,15 @@ export default function SalesEntry() {
 
   const removeItemFromInvoice = useCallback((itemId: string) => {
     setInvoiceItems(prev => prev.filter(item => item.id !== itemId))
+    setItemDraftInputs(prev => {
+      const next = { ...prev }
+      delete next[itemId]
+      return next
+    })
   }, [])
 
   const updateItemQuantity = useCallback((itemId: string, qty: string) => {
+    setItemDraftInputs(prev => ({ ...prev, [itemId]: { ...prev[itemId], qty } }))
     const qtyNum = parseFloat(qty) || 0
     setInvoiceItems(prev => prev.map(item => {
       if (item.id === itemId) {
@@ -305,6 +317,7 @@ export default function SalesEntry() {
   }, [])
 
   const updateItemRate = useCallback((itemId: string, rate: string) => {
+    setItemDraftInputs(prev => ({ ...prev, [itemId]: { ...prev[itemId], rate } }))
     const rateNum = parseFloat(rate) || 0
     setInvoiceItems(prev => prev.map(item => {
       if (item.id === itemId) {
@@ -335,10 +348,12 @@ export default function SalesEntry() {
       round_off: "",
     })
     setInvoiceItems([])
+    setItemDraftInputs({})
     setCurrentItem({ item_id: "", qty: "1", rate: "" })
     setIsFormOpen(false)
     setEditingInvoice(null)
     setItemSearchValue("")
+    setInvoiceNoError("")
   }, [generateInvoiceNo])
 
   // Optimized form submission
@@ -352,6 +367,17 @@ export default function SalesEntry() {
       })
       return
     }
+
+    // Check for duplicate invoice number
+    const duplicate = invoices.find(
+      inv => inv.invoice_no.trim().toLowerCase() === formData.invoice_no.trim().toLowerCase()
+        && inv.id !== editingInvoice?.id
+    )
+    if (duplicate) {
+      setInvoiceNoError(`Invoice number "${formData.invoice_no}" already exists`)
+      return
+    }
+    setInvoiceNoError("")
 
     setSaving(true)
     try {
@@ -472,6 +498,11 @@ export default function SalesEntry() {
       round_off: invoice.round_off.toString(),
     })
     setInvoiceItems(invoice.items)
+    const initialDrafts: Record<string, { rate: string; qty: string }> = {}
+    invoice.items.forEach(item => {
+      initialDrafts[item.id] = { rate: item.rate.toString(), qty: item.qty.toString() }
+    })
+    setItemDraftInputs(initialDrafts)
     setEditingInvoice(invoice)
     setIsFormOpen(true)
   }, [])
@@ -551,7 +582,7 @@ export default function SalesEntry() {
         {/* Form */}
         {isFormOpen && (
           <Card className="shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
+            <CardHeader className="border-b">
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
                 {editingInvoice ? "Edit Sales Invoice" : "Create New Invoice"}
@@ -561,7 +592,7 @@ export default function SalesEntry() {
               <form onSubmit={handleSubmit} className="space-y-8">
                 {/* Business Header */}
                 {business && (
-                  <Card className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+                  <Card className="bg-blue-600 text-white border-0">
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-3">
@@ -592,9 +623,15 @@ export default function SalesEntry() {
                       id="invoice_no"
                       required
                       value={formData.invoice_no}
-                      onChange={(e) => setFormData(prev => ({ ...prev, invoice_no: e.target.value }))}
-                      className="mt-1"
+                      onChange={(e) => {
+                        setFormData(prev => ({ ...prev, invoice_no: e.target.value }))
+                        setInvoiceNoError("")
+                      }}
+                      className={`mt-1 ${invoiceNoError ? "border-red-500 focus-visible:ring-red-500" : ""}`}
                     />
+                    {invoiceNoError && (
+                      <p className="mt-1 text-xs text-red-500">{invoiceNoError}</p>
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="date" className="text-sm font-medium">Invoice Date *</Label>
@@ -851,7 +888,7 @@ export default function SalesEntry() {
                                 <div className="flex items-center gap-1">
                                   <Input
                                     type="text"
-                                    value={item.qty}
+                                    value={itemDraftInputs[item.id]?.qty ?? item.qty.toString()}
                                     onChange={(e) => updateItemQuantity(item.id, e.target.value)}
                                     className="w-16 text-center"
                                   />
@@ -861,7 +898,7 @@ export default function SalesEntry() {
                               <TableCell>
                                 <Input
                                   type="text"
-                                  value={item.rate}
+                                  value={itemDraftInputs[item.id]?.rate ?? item.rate.toString()}
                                   onChange={(e) => updateItemRate(item.id, e.target.value)}
                                   className="w-20"
                                 />
@@ -890,7 +927,7 @@ export default function SalesEntry() {
                     </div>
 
                     {/* Invoice Summary */}
-                    <Card className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50">
+                    <Card className="mt-6 bg-gray-50 dark:bg-gray-800/50 border">
                       <CardContent className="p-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div className="space-y-4">

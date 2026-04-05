@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect } from "react"
 import { getCurrentUser, queryBuilder, insertData, updateData, verifyBusinessOwnership } from "@/lib/supabase"
@@ -379,14 +379,14 @@ export default function BankAccountsPage() {
 
   return (
     <AuthenticatedLayout>
-      <div className="p-6 space-y-8 bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen">
+      <div className="p-6 space-y-8 bg-gray-50 dark:bg-gray-950 min-h-screen">
         {/* Modern Header */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-emerald-600 via-blue-600 to-purple-600 rounded-2xl shadow-2xl">
-          <div className="absolute inset-0 bg-gradient-to-r from-emerald-600/20 to-purple-600/20 backdrop-blur-sm"></div>
+        <div className="relative overflow-hidden bg-blue-700 rounded-2xl shadow-2xl">
+          <div className="absolute inset-0  backdrop-blur-sm"></div>
           <div className="relative p-8 text-white">
             <div className="flex justify-between items-center">
               <div>
-                <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">
+                <h1 className="text-4xl font-bold mb-2 ">
                   Bank Accounts
                 </h1>
                 <p className="text-blue-100 text-lg opacity-90">
@@ -404,8 +404,8 @@ export default function BankAccountsPage() {
 
         {/* Account Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-          <Card className="group relative overflow-hidden bg-gradient-to-br from-emerald-50 to-emerald-100 border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-emerald-600/10"></div>
+          <Card className="group relative overflow-hidden bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <div className="absolute inset-0 "></div>
             <CardHeader className="relative flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-semibold text-emerald-700">Total Balance</CardTitle>
               <div className="p-2 bg-emerald-500 rounded-lg shadow-md group-hover:scale-110 transition-transform">
@@ -422,8 +422,8 @@ export default function BankAccountsPage() {
             </CardContent>
           </Card>
 
-          <Card className="group relative overflow-hidden bg-gradient-to-br from-blue-50 to-blue-100 border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-blue-600/10"></div>
+          <Card className="group relative overflow-hidden bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <div className="absolute inset-0 "></div>
             <CardHeader className="relative flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-semibold text-blue-700">Total Credits</CardTitle>
               <div className="p-2 bg-blue-500 rounded-lg shadow-md group-hover:scale-110 transition-transform">
@@ -440,8 +440,8 @@ export default function BankAccountsPage() {
             </CardContent>
           </Card>
 
-          <Card className="group relative overflow-hidden bg-gradient-to-br from-red-50 to-red-100 border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-            <div className="absolute inset-0 bg-gradient-to-br from-red-500/5 to-red-600/10"></div>
+          <Card className="group relative overflow-hidden bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <div className="absolute inset-0 "></div>
             <CardHeader className="relative flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-semibold text-red-700">Total Debits</CardTitle>
               <div className="p-2 bg-red-500 rounded-lg shadow-md group-hover:scale-110 transition-transform">
@@ -458,8 +458,8 @@ export default function BankAccountsPage() {
             </CardContent>
           </Card>
 
-          <Card className="group relative overflow-hidden bg-gradient-to-br from-purple-50 to-purple-100 border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-purple-600/10"></div>
+          <Card className="group relative overflow-hidden bg-violet-50 dark:bg-violet-950/30 border border-violet-100 dark:border-violet-900 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <div className="absolute inset-0 "></div>
             <CardHeader className="relative flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-semibold text-purple-700">Net Cash Flow</CardTitle>
               <div className="p-2 bg-purple-500 rounded-lg shadow-md group-hover:scale-110 transition-transform">
@@ -481,7 +481,7 @@ export default function BankAccountsPage() {
         <div className="flex flex-wrap gap-4">
           <Dialog open={isAccountFormOpen} onOpenChange={setIsAccountFormOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg">
+              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Bank Account
               </Button>
@@ -691,14 +691,14 @@ export default function BankAccountsPage() {
         {/* Bank Accounts List */}
         {accounts.length > 0 && (
           <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200">
+            <CardHeader className="bg-gray-50 dark:bg-gray-800/50 border-b border-slate-200">
               <CardTitle className="text-xl font-bold text-slate-800">Bank Accounts</CardTitle>
               <p className="text-slate-600 text-sm">Manage your business bank accounts</p>
             </CardHeader>
             <CardContent className="p-6">
               <div className="grid gap-4">
                 {accounts.map((account) => (
-                  <div key={account.id} className="p-6 bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all duration-200">
+                  <div key={account.id} className="p-6 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all duration-200">
                     <div className="flex justify-between items-start">
                       <div className="space-y-2">
                         <h3 className="text-lg font-semibold text-slate-800">{account.bank_name}</h3>
@@ -728,7 +728,7 @@ export default function BankAccountsPage() {
         {/* Transaction History */}
         {transactions.length > 0 && (
           <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100">
+            <CardHeader className="border-b">
               <CardTitle className="text-xl font-bold text-blue-900">Transaction History</CardTitle>
               <p className="text-blue-600 text-sm">Recent banking transactions</p>
             </CardHeader>
@@ -789,7 +789,7 @@ export default function BankAccountsPage() {
               <p className="text-slate-500 mb-6">Add your first bank account to start tracking transactions</p>
               <Button 
                 onClick={() => setIsAccountFormOpen(true)}
-                className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700"
+                className="bg-emerald-600 hover:bg-emerald-700"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Bank Account
@@ -801,3 +801,5 @@ export default function BankAccountsPage() {
     </AuthenticatedLayout>
   )
 }
+
+

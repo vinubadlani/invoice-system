@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useRef, useEffect } from 'react'
 import { MessageCircle, Send, Bot, User, Loader2, CheckCircle, AlertCircle, Sparkles, Brain, Zap, TrendingUp, BarChart3, ChevronDown } from 'lucide-react'
@@ -900,7 +900,7 @@ export default function ChatPage() {
 
   return (
     <AuthenticatedLayout>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
         <div className="max-w-6xl mx-auto p-2 sm:p-6">
           {/* Enhanced Header - Mobile Responsive */}
           <div className="mb-4 sm:mb-8">
@@ -983,7 +983,7 @@ export default function ChatPage() {
                     <div
                       className={`max-w-[90%] sm:max-w-[85%] p-3 sm:p-4 rounded-2xl shadow-sm ${
                         message.type === 'user'
-                          ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white'
+                          ? 'bg-blue-600 text-white'
                           : 'bg-white border border-slate-200'
                       }`}
                     >
@@ -991,7 +991,7 @@ export default function ChatPage() {
                         <div className={`p-1.5 sm:p-2 rounded-full ${
                           message.type === 'user' 
                             ? 'bg-white/20' 
-                            : 'bg-gradient-to-br from-blue-500 to-purple-600'
+                            : 'bg-blue-600'
                         }`}>
                           {message.type === 'user' ? (
                             <User className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
@@ -1053,7 +1053,7 @@ export default function ChatPage() {
                   <div className="flex justify-start">
                     <div className="bg-white border border-slate-200 p-3 sm:p-4 rounded-2xl shadow-sm">
                       <div className="flex items-center gap-2 sm:gap-3">
-                        <div className="p-1.5 sm:p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full">
+                        <div className="p-1.5 sm:p-2 bg-blue-600 rounded-full">
                           <Brain className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
                         </div>
                         <div className="flex items-center gap-2">
@@ -1218,7 +1218,7 @@ export default function ChatPage() {
                     onClick={handleSendMessage}
                     disabled={!inputValue.trim() || isProcessing}
                     size="icon"
-                    className="bg-gradient-to-r from-blue-500 via-purple-600 to-pink-600 hover:from-blue-600 hover:via-purple-700 hover:to-pink-700 transition-all duration-300 h-9 w-9 sm:h-10 sm:w-10"
+                    className="bg-blue-600 hover:from-blue-600 hover:via-purple-700 hover:to-pink-700 transition-all duration-300 h-9 w-9 sm:h-10 sm:w-10"
                   >
                     <Send className="h-3 w-3 sm:h-4 sm:w-4" />
                   </Button>
@@ -1236,3 +1236,7 @@ export default function ChatPage() {
     </AuthenticatedLayout>
   )
 }
+
+
+
+

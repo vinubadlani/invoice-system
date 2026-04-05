@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect } from "react"
 import { fetchParties, fetchInvoices, queryBuilder, getCurrentUser } from "@/lib/supabase"
@@ -245,7 +245,7 @@ export default function Ledger() {
 
   return (
     <AuthenticatedLayout>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
         <div className="p-6 space-y-8">
           {/* Header */}
           <div className="flex justify-between items-center">
@@ -321,7 +321,7 @@ export default function Ledger() {
           {/* Account Summary */}
           {selectedParty && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-0 shadow-lg">
+              <Card className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-semibold text-blue-700">Total Debits</CardTitle>
                   <FileText className="h-4 w-4 text-blue-600" />
@@ -331,7 +331,7 @@ export default function Ledger() {
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-green-50 to-green-100 border-0 shadow-lg">
+              <Card className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900 shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-semibold text-green-700">Total Credits</CardTitle>
                   <FileText className="h-4 w-4 text-green-600" />
@@ -341,7 +341,7 @@ export default function Ledger() {
                 </CardContent>
               </Card>
 
-              <Card className={`bg-gradient-to-br ${currentBalance >= 0 ? 'from-indigo-50 to-indigo-100' : 'from-red-50 to-red-100'} border-0 shadow-lg`}>
+              <Card className={`${currentBalance >= 0 ? 'bg-indigo-50 dark:bg-indigo-950/20' : 'bg-red-50 dark:bg-red-950/20'} border-0 shadow-lg`}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className={`text-sm font-semibold ${currentBalance >= 0 ? 'text-indigo-700' : 'text-red-700'}`}>
                     Current Balance
@@ -355,7 +355,7 @@ export default function Ledger() {
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-0 shadow-lg">
+              <Card className="bg-violet-50 dark:bg-violet-950/30 border border-violet-100 dark:border-violet-900 shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-semibold text-purple-700">Opening Balance</CardTitle>
                   <FileText className="h-4 w-4 text-purple-600" />
@@ -460,3 +460,5 @@ export default function Ledger() {
     </AuthenticatedLayout>
   )
 }
+
+

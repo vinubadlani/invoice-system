@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect } from "react"
 import { supabase, getSupabaseClient } from "@/lib/supabase"
@@ -384,7 +384,7 @@ export default function PurchasesPage() {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+          <Card className="bg-blue-600 text-white">
             <CardContent className="p-6">
               <div className="flex justify-between items-start">
                 <div>
@@ -396,7 +396,7 @@ export default function PurchasesPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-r from-green-500 to-green-600 text-white">
+          <Card className="bg-emerald-600 text-white">
             <CardContent className="p-6">
               <div className="flex justify-between items-start">
                 <div>
@@ -408,7 +408,7 @@ export default function PurchasesPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-r from-red-500 to-red-600 text-white">
+          <Card className="bg-red-500 text-white">
             <CardContent className="p-6">
               <div className="flex justify-between items-start">
                 <div>
@@ -420,7 +420,7 @@ export default function PurchasesPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white">
+          <Card className="bg-violet-600 text-white">
             <CardContent className="p-6">
               <div className="flex justify-between items-start">
                 <div>

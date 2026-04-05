@@ -8,6 +8,7 @@ import { BusinessProvider } from "@/app/context/BusinessContext"
 import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from "@/components/theme-provider"
 import PerformanceMonitor from "@/components/PerformanceMonitor"
+import AppShellLoader from "@/components/AppShellLoader"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -42,7 +43,9 @@ export default function RootLayout({
           <AuthProvider>
             <BusinessProvider>
               <AppProvider>
-                {children}
+                <AppShellLoader>
+                  {children}
+                </AppShellLoader>
                 <Toaster />
                 <PerformanceMonitor />
               </AppProvider>
