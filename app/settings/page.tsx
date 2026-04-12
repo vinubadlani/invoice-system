@@ -16,6 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import AuthenticatedLayout from "@/components/AuthenticatedLayout"
 import { useToast } from "@/hooks/use-toast"
+import CustomTemplatesManager from "@/components/CustomTemplatesManager"
+import { getCurrentUser } from "@/lib/supabase"
 
 interface UserSettings {
   notifications: boolean
@@ -114,6 +116,7 @@ export default function Settings() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [localBusiness, setLocalBusiness] = useState<Business | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
 
   useEffect(() => {
     loadData()
@@ -125,6 +128,12 @@ export default function Settings() {
       if (business) {
         setLocalBusiness(business)
         setSelectedTemplate(business.invoice_template || "classic")
+      }
+      
+      // Get current user
+      const user = await getCurrentUser()
+      if (user) {
+        setUserId(user.id)
       }
       
       // Load user settings from localStorage
@@ -341,13 +350,27 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="templates">
-            <Card>
-              <CardHeader>
-                <CardTitle>Invoice Templates</CardTitle>
-                <p className="text-sm text-gray-600">Choose from professional invoice templates for your business</p>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-8">
+            <div className="space-y-6">
+              {/* Custom Templates Manager */}
+              {business && userId && (
+                <CustomTemplatesManager
+                  businessId={business.id}
+                  userId={userId}
+                  onTemplateSelect={(templateId) => {
+                    handleTemplateSelect(templateId)
+                    handleBusinessSave()
+                  }}
+                />
+              )}
+
+              {/* Predefined Templates */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Predefined Templates</CardTitle>
+                  <p className="text-sm text-gray-600">Choose from professional templates for your business</p>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-8">
                   {/* Invoice Templates */}
                   <div>
                     <h3 className="text-lg font-semibold mb-4 flex items-center">
@@ -484,6 +507,7 @@ export default function Settings() {
                 </div>
               </CardContent>
             </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="user">

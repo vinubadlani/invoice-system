@@ -10,6 +10,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
 import { CalendarIcon, Filter, X, RefreshCw, Download } from "lucide-react"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 
@@ -141,19 +142,15 @@ export default function DataTableFilters({
 
       case 'select':
         return (
-          <Select value={value || ''} onValueChange={(val) => handleFilterChange(filter.id, val)}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder={filter.placeholder || `Select ${filter.label.toLowerCase()}`} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">All {filter.label}</SelectItem>
-              {filter.options?.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            options={filter.options || []}
+            value={value || ''}
+            onValueChange={(val) => handleFilterChange(filter.id, val)}
+            placeholder={filter.placeholder || `Select ${filter.label.toLowerCase()}`}
+            searchPlaceholder={`Search ${filter.label.toLowerCase()}…`}
+            allowAll
+            allLabel={`All ${filter.label}`}
+          />
         )
 
       case 'date':
@@ -278,21 +275,12 @@ export default function DataTableFilters({
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pb-4 border-b border-border">
             <div className="space-y-2">
               <Label className="text-sm font-medium">Financial Year</Label>
-              <Select 
-                value={currentFinancialYear} 
+              <SearchableSelect
+                options={getFinancialYearOptions()}
+                value={currentFinancialYear}
                 onValueChange={setCurrentFinancialYear}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {getFinancialYearOptions().map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                searchPlaceholder="Search financial year…"
+              />
             </div>
           </div>
         )}

@@ -1,7 +1,7 @@
 ﻿"use client"
 
 import { useState, useEffect } from "react"
-import { supabase, getSupabaseClient } from "@/lib/supabase"
+import { fetchInvoices } from "@/lib/supabase"
 import { Plus, Trash2, Save, FileText, Download, Eye, Edit, Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -120,26 +120,17 @@ export default function PurchasesPage() {
     try {
       setLoading(true)
       const { start, end } = getFinancialYearRange(financialYear)
-      
-      const client = getSupabaseClient()
-      if (!client) {
-        console.error("Supabase client not available")
-        return
-      }
-      
-      const { data, error } = await client
-        .from('invoices')
-        .select('*')
-        .eq('business_id', businessId)
-        .eq('type', 'purchase')
-        .gte('date', start)
-        .lte('date', end)
-        .order('date', { ascending: false })
 
-      if (error) throw error
-      
-      setPurchases((data as unknown as Purchase[]) || [])
-      setFilteredPurchases((data as unknown as Purchase[]) || [])
+      const data = await fetchInvoices(businessId, 'purchase', 2000)
+
+      // Filter by financial year date range client-side
+      const filtered = data.filter((inv: any) => {
+        const d = inv.date
+        return d >= start && d <= end
+      })
+
+      setPurchases((filtered as unknown as Purchase[]) || [])
+      setFilteredPurchases((filtered as unknown as Purchase[]) || [])
     } catch (error) {
       console.error('Error fetching purchases:', error)
     } finally {

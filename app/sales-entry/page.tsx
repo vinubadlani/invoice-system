@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
@@ -646,24 +647,16 @@ export default function SalesEntry() {
                   </div>
                   <div>
                     <Label htmlFor="party_id" className="text-sm font-medium">Customer *</Label>
-                    <Select
-                      value={formData.party_id}
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, party_id: value }))}
-                    >
-                      <SelectTrigger className="mt-1">
-                        <SelectValue placeholder="Select Customer" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {parties.map((party) => (
-                          <SelectItem key={party.id} value={party.id}>
-                            <div className="flex flex-col">
-                              <span className="font-medium">{party.name}</span>
-                              <span className="text-xs text-gray-500">{party.city}, {party.state}</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="mt-1">
+                      <SearchableSelect
+                        options={parties.map((p) => ({ value: p.id, label: p.name }))}
+                        value={formData.party_id}
+                        onValueChange={(value) => setFormData(prev => ({ ...prev, party_id: value }))}
+                        placeholder="Select Customer"
+                        searchPlaceholder="Search customer…"
+                        emptyMessage="No customers found."
+                      />
+                    </div>
                   </div>
                 </div>
 

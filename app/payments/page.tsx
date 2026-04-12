@@ -1,13 +1,14 @@
 ﻿"use client"
 
 import { useState, useEffect } from "react"
-import { fetchInvoices, fetchParties, queryBuilder, insertData, getCurrentUser } from "@/lib/supabase"
-import { Plus, Save, X, DollarSign, TrendingUp, TrendingDown, CreditCard, Calendar, Search, Filter, Eye } from "lucide-react"
+import { fetchInvoices, fetchParties, queryBuilder, insertData, updateData, getCurrentUser } from "@/lib/supabase"
+import { Plus, Save, X, DollarSign, TrendingUp, TrendingDown, CreditCard, Calendar, Search, Filter, Eye, Pencil, Printer } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
@@ -48,6 +49,7 @@ export default function PaymentsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
   const [saving, setSaving] = useState(false)
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
   
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
@@ -181,15 +183,17 @@ export default function PaymentsPage() {
         remarks: formData.remarks || null,
       }
 
-      const { error } = await insertData('payments', paymentData)
+      const result = editingPaymentId
+        ? await updateData('payments', editingPaymentId, paymentData)
+        : await insertData('payments', paymentData)
       
-      if (error) {
-        throw error
+      if (result.error) {
+        throw result.error
       }
 
       toast({
         title: "Success",
-        description: "Payment recorded successfully",
+        description: editingPaymentId ? "Payment updated successfully" : "Payment recorded successfully",
       })
 
       resetForm()
@@ -217,7 +221,60 @@ export default function PaymentsPage() {
       mode: "Cash",
       remarks: "",
     })
+    setEditingPaymentId(null)
     setIsFormOpen(false)
+  }
+
+  const handleEditPayment = (payment: Payment) => {
+    setEditingPaymentId(payment.id)
+    setFormData({
+      date: payment.date,
+      party_name: payment.party_name,
+      type: payment.type,
+      invoice_no: payment.invoice_no || "",
+      amount: payment.amount,
+      mode: payment.mode,
+      remarks: payment.remarks || "",
+    })
+    setIsFormOpen(true)
+  }
+
+  const handlePrintPayment = (payment: Payment) => {
+    const receiptWindow = window.open("", "_blank", "width=800,height=700")
+    if (!receiptWindow) return
+
+    receiptWindow.document.write(`
+      <html>
+        <head>
+          <title>Payment Receipt - ${payment.party_name}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; color: #111827; }
+            .wrap { max-width: 720px; margin: 0 auto; border: 1px solid #d1d5db; padding: 24px; border-radius: 12px; }
+            h1 { margin: 0 0 8px; font-size: 24px; }
+            .muted { color: #6b7280; margin-bottom: 24px; }
+            .row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
+            .label { font-weight: 600; }
+            .amount { font-size: 28px; font-weight: 700; margin-top: 16px; }
+          </style>
+        </head>
+        <body>
+          <div class="wrap">
+            <h1>Payment Receipt</h1>
+            <div class="muted">Printed on ${new Date().toLocaleString("en-IN")}</div>
+            <div class="row"><span class="label">Party</span><span>${payment.party_name}</span></div>
+            <div class="row"><span class="label">Type</span><span>${payment.type}</span></div>
+            <div class="row"><span class="label">Date</span><span>${new Date(payment.date).toLocaleDateString("en-IN")}</span></div>
+            <div class="row"><span class="label">Invoice</span><span>${payment.invoice_no || "-"}</span></div>
+            <div class="row"><span class="label">Mode</span><span>${payment.mode}</span></div>
+            <div class="row"><span class="label">Remarks</span><span>${payment.remarks || "-"}</span></div>
+            <div class="amount">Amount: ₹${payment.amount.toLocaleString("en-IN")}</div>
+          </div>
+        </body>
+      </html>
+    `)
+    receiptWindow.document.close()
+    receiptWindow.focus()
+    receiptWindow.print()
   }
 
   const getRelatedInvoices = () => {
@@ -254,7 +311,7 @@ export default function PaymentsPage() {
               </DialogTrigger>
               <DialogContent className="max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Record New Payment</DialogTitle>
+                  <DialogTitle>{editingPaymentId ? "Edit Payment" : "Record New Payment"}</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
@@ -284,21 +341,14 @@ export default function PaymentsPage() {
 
                   <div>
                     <Label htmlFor="party">Party Name</Label>
-                    <Select 
-                      value={formData.party_name} 
+                    <SearchableSelect
+                      options={parties.map((p) => ({ value: p.name, label: p.name }))}
+                      value={formData.party_name}
                       onValueChange={(value) => setFormData({ ...formData, party_name: value, invoice_no: "" })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select party" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {parties.map((party) => (
-                          <SelectItem key={party.id} value={party.name}>
-                            {party.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Select party"
+                      searchPlaceholder="Search party…"
+                      emptyMessage="No parties found."
+                    />
                   </div>
 
                   <div>
@@ -480,6 +530,7 @@ export default function PaymentsPage() {
                         <TableHead>Amount</TableHead>
                         <TableHead>Mode</TableHead>
                         <TableHead>Remarks</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -499,6 +550,18 @@ export default function PaymentsPage() {
                           <TableCell className="font-mono">₹{payment.amount.toLocaleString()}</TableCell>
                           <TableCell>{payment.mode}</TableCell>
                           <TableCell className="max-w-xs truncate">{payment.remarks || '-'}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-end gap-2">
+                              <Button variant="outline" size="sm" onClick={() => handleEditPayment(payment)}>
+                                <Pencil className="h-3.5 w-3.5 mr-1" />
+                                Edit
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => handlePrintPayment(payment)}>
+                                <Printer className="h-3.5 w-3.5 mr-1" />
+                                Print
+                              </Button>
+                            </div>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

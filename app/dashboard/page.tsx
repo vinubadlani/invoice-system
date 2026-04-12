@@ -12,10 +12,39 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import AuthenticatedLayout from "@/components/AuthenticatedLayout"
 import { useBusiness } from "@/app/context/BusinessContext"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
+
+type DashboardWidgetKey =
+  | "totalSales"
+  | "totalPurchases"
+  | "netProfit"
+  | "pendingInvoices"
+  | "totalParties"
+  | "totalItems"
+  | "salesInvoices"
+  | "activity"
+  | "quickActions"
+  | "recentActivity"
+  | "performance"
+
+const DEFAULT_DASHBOARD_WIDGETS: Record<DashboardWidgetKey, boolean> = {
+  totalSales: true,
+  totalPurchases: true,
+  netProfit: true,
+  pendingInvoices: true,
+  totalParties: true,
+  totalItems: true,
+  salesInvoices: true,
+  activity: true,
+  quickActions: true,
+  recentActivity: true,
+  performance: true,
+}
 
 interface DashboardStats {
   totalSales: number
@@ -44,6 +73,7 @@ export default function Dashboard() {
   const [loadError, setLoadError] = useState(false)
   const [progress, setProgress] = useState(0)
   const [retryCount, setRetryCount] = useState(0)
+  const [widgetPrefs, setWidgetPrefs] = useState<Record<DashboardWidgetKey, boolean>>(DEFAULT_DASHBOARD_WIDGETS)
   const { selectedBusiness } = useBusiness()
   const businessId = selectedBusiness?.id ?? ""
   const { fetchRecentInvoices, fetchParties, fetchItems } = useOptimizedData()
@@ -128,6 +158,17 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
+    const storedPrefs = localStorage.getItem("dashboard-widget-prefs")
+    if (storedPrefs) {
+      try {
+        setWidgetPrefs({ ...DEFAULT_DASHBOARD_WIDGETS, ...JSON.parse(storedPrefs) })
+      } catch {
+        setWidgetPrefs(DEFAULT_DASHBOARD_WIDGETS)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
     if (businessId) {
       setRetryCount(0)
       loadDashboardData(businessId)
@@ -208,6 +249,7 @@ export default function Dashboard() {
 
   const statCards = [
     {
+      key: "totalSales" as const,
       label: "Total Sales",
       value: `₹${stats.totalSales.toLocaleString()}`,
       sub: `This month: ₹${stats.thisMonthSales.toLocaleString()}`,
@@ -217,6 +259,7 @@ export default function Dashboard() {
       trend: "up",
     },
     {
+      key: "totalPurchases" as const,
       label: "Total Purchases",
       value: `₹${stats.totalPurchases.toLocaleString()}`,
       sub: `This month: ₹${stats.thisMonthPurchases.toLocaleString()}`,
@@ -226,6 +269,7 @@ export default function Dashboard() {
       trend: null,
     },
     {
+      key: "netProfit" as const,
       label: "Net Profit",
       value: `₹${stats.profit.toLocaleString()}`,
       sub: stats.profit >= 0 ? "Profitable period" : "Loss this period",
@@ -235,6 +279,7 @@ export default function Dashboard() {
       trend: stats.profit >= 0 ? "up" : "down",
     },
     {
+      key: "pendingInvoices" as const,
       label: "Pending Invoices",
       value: stats.pendingInvoices.toString(),
       sub: "Awaiting payment",
@@ -244,6 +289,21 @@ export default function Dashboard() {
       trend: null,
     },
   ]
+
+  const visibleStatCards = statCards.filter((card) => widgetPrefs[card.key])
+
+  const secondaryStats = [
+    { key: "totalParties" as const, label: "Total Parties", value: stats.totalParties, icon: Users, color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950/40" },
+    { key: "totalItems" as const, label: "Total Items", value: stats.totalItems, icon: Package, color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-950/40" },
+    { key: "salesInvoices" as const, label: "Sales Invoices", value: recentActivities.filter(a => a.type === "sale").length, icon: ReceiptText, color: "text-violet-600", bg: "bg-violet-50 dark:bg-violet-950/40" },
+    { key: "activity" as const, label: "Activity", value: recentActivities.length, icon: Activity, color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/40" },
+  ].filter((item) => widgetPrefs[item.key])
+
+  const handleWidgetToggle = (key: DashboardWidgetKey, checked: boolean) => {
+    const nextPrefs = { ...widgetPrefs, [key]: checked }
+    setWidgetPrefs(nextPrefs)
+    localStorage.setItem("dashboard-widget-prefs", JSON.stringify(nextPrefs))
+  }
 
   return (
     <AuthenticatedLayout>
@@ -257,17 +317,75 @@ export default function Dashboard() {
               Welcome back — here is what is happening today.
             </p>
           </div>
-          <Link href="/sales-entry">
-            <Button size="sm" className="gap-2">
-              <PlusCircle className="h-4 w-4" />
-              New Invoice
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="outline">Customize</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Customize Dashboard</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <label className="flex items-center gap-3 text-sm">
+                    <Checkbox checked={widgetPrefs.totalSales} onCheckedChange={(checked) => handleWidgetToggle("totalSales", checked === true)} />
+                    <span>Total Sales</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <Checkbox checked={widgetPrefs.totalPurchases} onCheckedChange={(checked) => handleWidgetToggle("totalPurchases", checked === true)} />
+                    <span>Total Purchase</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <Checkbox checked={widgetPrefs.netProfit} onCheckedChange={(checked) => handleWidgetToggle("netProfit", checked === true)} />
+                    <span>Net Profit</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <Checkbox checked={widgetPrefs.pendingInvoices} onCheckedChange={(checked) => handleWidgetToggle("pendingInvoices", checked === true)} />
+                    <span>Pending Invoices</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <Checkbox checked={widgetPrefs.totalParties} onCheckedChange={(checked) => handleWidgetToggle("totalParties", checked === true)} />
+                    <span>Total Parties</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <Checkbox checked={widgetPrefs.totalItems} onCheckedChange={(checked) => handleWidgetToggle("totalItems", checked === true)} />
+                    <span>Total Items</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <Checkbox checked={widgetPrefs.salesInvoices} onCheckedChange={(checked) => handleWidgetToggle("salesInvoices", checked === true)} />
+                    <span>Sales Invoices</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <Checkbox checked={widgetPrefs.activity} onCheckedChange={(checked) => handleWidgetToggle("activity", checked === true)} />
+                    <span>Activity</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <Checkbox checked={widgetPrefs.quickActions} onCheckedChange={(checked) => handleWidgetToggle("quickActions", checked === true)} />
+                    <span>Quick Actions</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <Checkbox checked={widgetPrefs.recentActivity} onCheckedChange={(checked) => handleWidgetToggle("recentActivity", checked === true)} />
+                    <span>Recent Activity</span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <Checkbox checked={widgetPrefs.performance} onCheckedChange={(checked) => handleWidgetToggle("performance", checked === true)} />
+                    <span>Performance</span>
+                  </label>
+                </div>
+              </DialogContent>
+            </Dialog>
+            <Link href="/sales-entry">
+              <Button size="sm" className="gap-2">
+                <PlusCircle className="h-4 w-4" />
+                New Invoice
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {/* Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          {statCards.map((card) => {
+          {visibleStatCards.map((card) => {
             const Icon = card.icon
             return (
               <Card key={card.label} className="border border-gray-200 dark:border-gray-800 shadow-none hover:shadow-sm transition-shadow">
@@ -289,13 +407,9 @@ export default function Dashboard() {
         </div>
 
         {/* Secondary Stats */}
+        {secondaryStats.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[
-            { label: "Total Parties", value: stats.totalParties, icon: Users, color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950/40" },
-            { label: "Total Items", value: stats.totalItems, icon: Package, color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-950/40" },
-            { label: "Sales Invoices", value: recentActivities.filter(a => a.type === "sale").length, icon: ReceiptText, color: "text-violet-600", bg: "bg-violet-50 dark:bg-violet-950/40" },
-            { label: "Activity", value: recentActivities.length, icon: Activity, color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/40" },
-          ].map((item) => {
+          {secondaryStats.map((item) => {
             const Icon = item.icon
             return (
               <Card key={item.label} className="border border-gray-200 dark:border-gray-800 shadow-none">
@@ -312,38 +426,42 @@ export default function Dashboard() {
             )
           })}
         </div>
+        )}
 
         {/* Quick Actions */}
-        <Card className="border border-gray-200 dark:border-gray-800 shadow-none">
-          <CardHeader className="pb-3 pt-5 px-5">
-            <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent className="px-5 pb-5">
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-              {quickActions.map((action) => {
-                const Icon = action.icon
-                return (
-                  <Link key={action.title} href={action.href}>
-                    <div className="group flex flex-col items-center gap-2.5 p-3 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-all text-center">
-                      <div className={`h-10 w-10 rounded-xl ${action.bg} flex items-center justify-center group-hover:scale-105 transition-transform`}>
-                        <Icon className={`h-5 w-5 ${action.color}`} />
+        {widgetPrefs.quickActions && (
+          <Card className="border border-gray-200 dark:border-gray-800 shadow-none">
+            <CardHeader className="pb-3 pt-5 px-5">
+              <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Quick Actions</CardTitle>
+            </CardHeader>
+            <CardContent className="px-5 pb-5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+                {quickActions.map((action) => {
+                  const Icon = action.icon
+                  return (
+                    <Link key={action.title} href={action.href}>
+                      <div className="group flex flex-col items-center gap-2.5 p-3 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-all text-center">
+                        <div className={`h-10 w-10 rounded-xl ${action.bg} flex items-center justify-center group-hover:scale-105 transition-transform`}>
+                          <Icon className={`h-5 w-5 ${action.color}`} />
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-800 dark:text-gray-200">{action.title}</p>
+                          <p className="text-[10px] text-gray-500 dark:text-gray-400 hidden sm:block">{action.desc}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs font-semibold text-gray-800 dark:text-gray-200">{action.title}</p>
-                        <p className="text-[10px] text-gray-500 dark:text-gray-400 hidden sm:block">{action.desc}</p>
-                      </div>
-                    </div>
-                  </Link>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
+                    </Link>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Bottom row */}
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
 
           {/* Recent Activity */}
+          {widgetPrefs.recentActivity && (
           <Card className="xl:col-span-3 border border-gray-200 dark:border-gray-800 shadow-none">
             <CardHeader className="pb-3 pt-5 px-5 flex flex-row items-center justify-between">
               <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Recent Activity</CardTitle>
@@ -401,9 +519,11 @@ export default function Dashboard() {
               )}
             </CardContent>
           </Card>
+          )}
 
           {/* Performance */}
-          <Card className="xl:col-span-2 border border-gray-200 dark:border-gray-800 shadow-none">
+          {widgetPrefs.performance && (
+          <Card className={`${widgetPrefs.recentActivity ? "xl:col-span-2" : "xl:col-span-5"} border border-gray-200 dark:border-gray-800 shadow-none`}>
             <CardHeader className="pb-3 pt-5 px-5">
               <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Performance</CardTitle>
             </CardHeader>
@@ -468,6 +588,7 @@ export default function Dashboard() {
               </div>
             </CardContent>
           </Card>
+          )}
 
         </div>
       </div>

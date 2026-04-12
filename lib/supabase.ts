@@ -481,21 +481,19 @@ export async function insertData(table: string, data: Record<string, any>): Prom
         return normalizeMutationSuccess([{ id }])
       }
       case 'parties': {
-        const id = await rpcExec<string>('rpc_create_party', {
+        const partyParams = {
           p_business_id: validatedData.business_id,
           p_name: validatedData.name,
-          p_mobile: validatedData.mobile,
           p_address: validatedData.address,
-          p_city: validatedData.city,
           p_state: validatedData.state,
-          p_pincode: validatedData.pincode,
           p_email: validatedData.email || null,
           p_gstin: validatedData.gstin || null,
           p_pan: validatedData.pan || null,
           p_type: validatedData.type || 'Debtor',
           p_opening_balance: validatedData.opening_balance || 0,
           p_balance_type: validatedData.balance_type || 'To Collect',
-        })
+        }
+        const id = await rpcExec<string>('rpc_create_party', partyParams)
         return normalizeMutationSuccess([{ id }])
       }
       case 'items': {
@@ -560,6 +558,32 @@ export async function insertData(table: string, data: Record<string, any>): Prom
           p_amount: validatedData.amount,
           p_date: validatedData.date,
           p_receipt_url: validatedData.receipt_url || null,
+        })
+        return normalizeMutationSuccess([{ id }])
+      }
+      case 'bank_accounts': {
+        const id = await rpcExec<string>('rpc_create_bank_account', {
+          p_business_id: validatedData.business_id,
+          p_bank_name: validatedData.bank_name,
+          p_account_number: validatedData.account_number,
+          p_account_type: validatedData.account_type,
+          p_ifsc_code: validatedData.ifsc_code,
+          p_branch_name: validatedData.branch_name || 'Main Branch',
+          p_account_holder_name: validatedData.account_holder_name || 'Account Holder',
+          p_opening_balance: validatedData.opening_balance || 0,
+          p_current_balance: validatedData.current_balance ?? validatedData.opening_balance ?? 0,
+        })
+        return normalizeMutationSuccess([{ id }])
+      }
+      case 'bank_transactions': {
+        const id = await rpcExec<string>('rpc_create_bank_transaction', {
+          p_business_id: validatedData.business_id,
+          p_bank_account_id: validatedData.bank_account_id,
+          p_date: validatedData.date,
+          p_type: validatedData.type,
+          p_amount: validatedData.amount,
+          p_description: validatedData.description,
+          p_reference_number: validatedData.reference_number || null,
         })
         return normalizeMutationSuccess([{ id }])
       }

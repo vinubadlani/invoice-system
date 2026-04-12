@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { fetchParties, fetchInvoices, queryBuilder, getCurrentUser } from "@/lib/supabase"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
@@ -273,18 +274,16 @@ export default function Ledger() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-2 block">Select Party</label>
-                  <Select value={selectedPartyId} onValueChange={setSelectedPartyId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a party" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {parties.map((party) => (
-                        <SelectItem key={party.id} value={party.id}>
-                          {party.name} ({party.type})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    options={parties.map((p) => ({ value: p.id, label: `${p.name} (${p.type})` }))}
+                    value={selectedPartyId}
+                    onValueChange={setSelectedPartyId}
+                    placeholder="Select a party"
+                    searchPlaceholder="Search party…"
+                    emptyMessage="No parties found."
+                    allowAll
+                    allLabel="All Parties"
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-2 block">From Date</label>

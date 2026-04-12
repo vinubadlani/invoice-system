@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
@@ -1086,28 +1087,32 @@ export default function PurchaseEntry() {
                       <User className="h-4 w-4" />
                       Supplier Name *
                     </Label>
-                    <Select 
-                      value={formData.party_id} 
-                      onValueChange={(value) => handlePartyChange(value)}
-                    >
-                      <SelectTrigger className="border-slate-300 focus:border-emerald-500 focus:ring-emerald-500">
-                        <SelectValue placeholder="Select Supplier" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__add_new__">
-                          <span className="flex items-center gap-2 text-blue-600 font-medium">
-                            <UserPlus className="h-4 w-4" /> Add New Supplier
-                          </span>
-                        </SelectItem>
-                        {parties
-                          .filter((p) => p.type === "Creditor")
-                          .map((party) => (
-                            <SelectItem key={party.id} value={party.id}>
-                              {party.name}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <SearchableSelect
+                          options={parties
+                            .filter((p) => p.type === "Creditor")
+                            .map((p) => ({ value: p.id, label: p.name }))}
+                          value={formData.party_id}
+                          onValueChange={(value) => handlePartyChange(value)}
+                          placeholder="Select Supplier"
+                          searchPlaceholder="Search supplier…"
+                          emptyMessage="No suppliers found."
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        title="Add New Supplier"
+                        onClick={() => {
+                          setNewSupplier({ name: "", gstin: "", state: "", address: "", phone: "" })
+                          setShowAddSupplier(true)
+                        }}
+                      >
+                        <UserPlus className="h-4 w-4 text-blue-600" />
+                      </Button>
+                    </div>
 
                   {/* Add New Supplier Dialog */}
                   <Dialog open={showAddSupplier} onOpenChange={setShowAddSupplier}>
@@ -1285,21 +1290,15 @@ export default function PurchaseEntry() {
                             </Badge>
                           </td>
                           <td className="py-4 px-4">
-                            <Select
+                            <SearchableSelect
+                              options={items.map((i) => ({ value: i.name, label: i.name }))}
                               value={item.item_name}
                               onValueChange={(value) => handleItemChange(index, "item_name", value)}
-                            >
-                              <SelectTrigger className="min-w-[200px] border-slate-300">
-                                <SelectValue placeholder="Select Item" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {items.map((i) => (
-                                  <SelectItem key={i.id} value={i.name}>
-                                    {i.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                              placeholder="Select Item"
+                              searchPlaceholder="Search item…"
+                              emptyMessage="No items found."
+                              className="min-w-[200px]"
+                            />
                           </td>
                           <td className="py-4 px-4">
                             <Input
@@ -1674,41 +1673,27 @@ export default function PurchaseEntry() {
                         />
                       </TableCell>
                       <TableCell>
-                        <Select
+                        <SearchableSelect
+                          options={parties.map((p) => ({ value: p.id, label: p.name }))}
                           value={row.party_id || ''}
                           onValueChange={(value) => updateCell(row.id, 'party_id', value)}
-                        >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder={row.party_name || "Select party"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {parties.map((party) => (
-                              <SelectItem key={party.id} value={party.id}>
-                                {party.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          placeholder={row.party_name || "Select party"}
+                          searchPlaceholder="Search party…"
+                          className="h-8 text-xs"
+                        />
                         {!row.party_id && row.party_name && (
                           <div className="text-xs text-orange-600 mt-1">Will create: {row.party_name}</div>
                         )}
                       </TableCell>
                       <TableCell>
-                        <Select
+                        <SearchableSelect
+                          options={items.map((i) => ({ value: i.id, label: i.name }))}
                           value={row.item_id || ''}
                           onValueChange={(value) => updateCell(row.id, 'item_id', value)}
-                        >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder={row.item_name || "Select item"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {items.map((item) => (
-                              <SelectItem key={item.id} value={item.id}>
-                                {item.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          placeholder={row.item_name || "Select item"}
+                          searchPlaceholder="Search item…"
+                          className="h-8 text-xs"
+                        />
                         {!row.item_id && row.item_name && (
                           <div className="text-xs text-orange-600 mt-1">Will create: {row.item_name}</div>
                         )}
