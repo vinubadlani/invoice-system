@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { supabase, getSupabaseClient } from "@/lib/supabase"
 import { useOptimizedData } from "@/lib/cache-store"
+import { useBusiness } from "@/app/context/BusinessContext"
 import { Plus, Edit, Trash2, Save, X, Loader2, Search, Calculator, Receipt, FileText, Building2, Upload, Download, CheckCircle, XCircle, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -101,6 +102,7 @@ export default function SalesEntry() {
   const [itemSearchValue, setItemSearchValue] = useState("")
   const [itemDraftInputs, setItemDraftInputs] = useState<Record<string, { rate: string; qty: string }>>({})
   const { toast } = useToast()
+  const { selectedBusiness: contextBusiness } = useBusiness()
 
   // Bulk upload states
   const [showBulkUpload, setShowBulkUpload] = useState(false)
@@ -138,13 +140,13 @@ export default function SalesEntry() {
   }, [])
 
   useEffect(() => {
-    const storedBusiness = localStorage.getItem("selectedBusiness")
-    if (storedBusiness) {
-      const businessData = JSON.parse(storedBusiness)
-      setBusinessId(businessData.id)
-      fetchData(businessData.id)
+    if (!contextBusiness) {
+      setLoading(false)
+      return
     }
-  }, [])
+    setBusinessId(contextBusiness.id)
+    fetchData(contextBusiness.id)
+  }, [contextBusiness?.id])
 
   // Direct fetch function for debugging
   const fetchItemsDirectly = useCallback(async (businessId: string) => {
@@ -183,6 +185,7 @@ export default function SalesEntry() {
       const client = getSupabaseClient()
       if (!client) {
         console.error("Supabase client not available")
+        setLoading(false)
         return
       }
       

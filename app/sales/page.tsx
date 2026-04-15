@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { fetchInvoices, deleteData, getCurrentUser, getSupabaseClient } from "@/lib/supabase"
+import { useBusiness } from "@/app/context/BusinessContext"
 import { TrendingUp, TrendingDown, DollarSign, FileText, Calendar, Filter, Download, Eye, RefreshCw, X, MapPin, Phone, Mail, Printer, Edit, Trash2 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -89,65 +90,41 @@ export default function SalesPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   
   const { toast } = useToast()
+  const { selectedBusiness } = useBusiness()
 
   useEffect(() => {
-    const storedBusiness = localStorage.getItem("selectedBusiness")
-    if (storedBusiness) {
-      const business = JSON.parse(storedBusiness)
-      setBusinessId(business.id)
-      loadSalesData(business.id)
-      
-      // Subscribe to real-time updates
-      const client = getSupabaseClient()
-      if (client) {
-        const subscription = client
-          .channel('sales-updates')
-          .on(
-            'postgres_changes',
-            {
-              event: '*',
-              schema: 'public',
-              table: 'invoices',
-              filter: `business_id=eq.${business.id} AND type=eq.sales`
-            },
-            (_payload: unknown) => {
-              // Refresh data when changes occur
-              loadSalesData(business.id, false)
-            }
-          )
-          .subscribe()
-
-        return () => {
-          subscription?.unsubscribe()
-        }
-      }
-    } else {
+    if (!selectedBusiness) {
       setLoading(false)
-      toast({
-        title: "No Business Selected",
-        description: "Please select a business to view sales data.",
-        variant: "destructive",
-      })
+      return
     }
 
-    // Listen for business changes
-    const handleStorageChange = () => {
-      const storedBusiness = localStorage.getItem("selectedBusiness")
-      if (storedBusiness) {
-        const business = JSON.parse(storedBusiness)
-        setBusinessId(business.id)
-        loadSalesData(business.id)
-      }
-    }
+    setBusinessId(selectedBusiness.id)
+    loadSalesData(selectedBusiness.id)
 
-    window.addEventListener('storage', handleStorageChange)
-    window.addEventListener('businessChanged', handleStorageChange)
+    // Subscribe to real-time updates
+    const client = getSupabaseClient()
+    if (!client) return
+
+    const subscription = client
+      .channel('sales-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'invoices',
+          filter: `business_id=eq.${selectedBusiness.id} AND type=eq.sales`
+        },
+        (_payload: unknown) => {
+          loadSalesData(selectedBusiness.id, false)
+        }
+      )
+      .subscribe()
 
     return () => {
-      window.removeEventListener('storage', handleStorageChange)
-      window.removeEventListener('businessChanged', handleStorageChange)
+      subscription?.unsubscribe()
     }
-  }, [toast])
+  }, [selectedBusiness])
 
   const loadSalesData = async (businessId: string, showLoading = true) => {
     try {
