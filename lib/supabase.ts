@@ -581,12 +581,12 @@ export async function insertData(table: string, data: Record<string, any>): Prom
       case 'bank_transactions': {
         const id = await rpcExec<string>('rpc_create_bank_transaction', {
           p_business_id: validatedData.business_id,
-          p_bank_account_id: validatedData.bank_account_id,
           p_date: validatedData.date,
+          p_bank_name: validatedData.bank_name,
+          p_account_no: validatedData.account_number || validatedData.account_no,
           p_type: validatedData.type,
           p_amount: validatedData.amount,
-          p_description: validatedData.description,
-          p_reference_number: validatedData.reference_number || null,
+          p_purpose: validatedData.purpose || validatedData.description,
         })
         return normalizeMutationSuccess([{ id }])
       }

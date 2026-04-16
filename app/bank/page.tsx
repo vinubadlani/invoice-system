@@ -31,12 +31,12 @@ interface BankAccount {
 interface BankTransaction {
   id: string
   business_id: string
-  bank_account_id: string
+  bank_name: string
+  account_no: string
   date: string
-  type: "Credit" | "Debit"
+  type: "Deposit" | "Withdrawal" | "Expense"
   amount: number
-  description: string
-  reference_number?: string
+  purpose: string
   created_at: string
 }
 
@@ -53,7 +53,7 @@ export default function BankAccountsPage() {
   const [accountFormData, setAccountFormData] = useState({
     bank_name: "",
     account_number: "",
-    account_type: "Savings" as "Savings" | "Current" | "Fixed Deposit" | "Credit Card",
+    account_type: "Savings" as "Savings" | "Current" | "CC" | "OD",
     ifsc_code: "",
     branch_name: "",
     account_holder_name: "",
@@ -63,10 +63,9 @@ export default function BankAccountsPage() {
   const [transactionFormData, setTransactionFormData] = useState({
     account_id: "",
     date: new Date().toISOString().split("T")[0],
-    type: "Credit" as "Credit" | "Debit",
+    type: "Deposit" as "Deposit" | "Withdrawal" | "Expense",
     amount: 0,
-    description: "",
-    reference_number: "",
+    purpose: "",
   })
 
   useEffect(() => {
@@ -261,7 +260,7 @@ export default function BankAccountsPage() {
         return
       }
 
-      if (!transactionFormData.description.trim()) {
+      if (!transactionFormData.purpose.trim()) {
         toast({
           title: "Validation Error",
           description: "Please enter a description",
@@ -270,20 +269,19 @@ export default function BankAccountsPage() {
         return
       }
 
-      const newBalance = transactionFormData.type === "Credit" 
+      const newBalance = transactionFormData.type === "Deposit"
         ? account.current_balance + transactionFormData.amount
         : account.current_balance - transactionFormData.amount
 
       // Add transaction
       const transactionData = {
         business_id: businessId,
-        bank_account_id: transactionFormData.account_id, // Use bank_account_id instead of account_id
+        bank_name: account.bank_name,
+        account_number: account.account_number,
         date: transactionFormData.date,
         type: transactionFormData.type,
         amount: transactionFormData.amount,
-        description: transactionFormData.description.trim(),
-        reference_number: transactionFormData.reference_number?.trim() || null,
-        created_at: new Date().toISOString()
+        purpose: transactionFormData.purpose.trim(),
       }
 
       const { error: transactionError } = await insertData('bank_transactions', transactionData)
@@ -336,20 +334,19 @@ export default function BankAccountsPage() {
     setTransactionFormData({
       account_id: "",
       date: new Date().toISOString().split("T")[0],
-      type: "Credit",
+      type: "Deposit",
       amount: 0,
-      description: "",
-      reference_number: "",
+      purpose: "",
     })
     setIsTransactionFormOpen(false)
   }
 
   const totalBalance = accounts.reduce((sum, account) => sum + account.current_balance, 0)
   const totalCredits = transactions
-    .filter(t => t.type === "Credit")
+    .filter(t => t.type === "Deposit")
     .reduce((sum, t) => sum + t.amount, 0)
   const totalDebits = transactions
-    .filter(t => t.type === "Debit")
+    .filter(t => t.type === "Withdrawal" || t.type === "Expense")
     .reduce((sum, t) => sum + t.amount, 0)
 
   if (loading) {
@@ -525,7 +522,7 @@ export default function BankAccountsPage() {
                   <Label htmlFor="account_type">Account Type</Label>
                   <Select
                     value={accountFormData.account_type}
-                    onValueChange={(value: "Savings" | "Current" | "Fixed Deposit" | "Credit Card") => 
+                    onValueChange={(value: "Savings" | "Current" | "CC" | "OD") => 
                       setAccountFormData({...accountFormData, account_type: value})
                     }
                   >
@@ -535,8 +532,8 @@ export default function BankAccountsPage() {
                     <SelectContent>
                       <SelectItem value="Savings">Savings</SelectItem>
                       <SelectItem value="Current">Current</SelectItem>
-                      <SelectItem value="Fixed Deposit">Fixed Deposit</SelectItem>
-                      <SelectItem value="Credit Card">Credit Card</SelectItem>
+                      <SelectItem value="CC">Credit Card (CC)</SelectItem>
+                      <SelectItem value="OD">Overdraft (OD)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -629,7 +626,7 @@ export default function BankAccountsPage() {
                   <Label htmlFor="type">Transaction Type</Label>
                   <Select
                     value={transactionFormData.type}
-                    onValueChange={(value: "Credit" | "Debit") => 
+                    onValueChange={(value: "Deposit" | "Withdrawal" | "Expense") => 
                       setTransactionFormData({...transactionFormData, type: value})
                     }
                   >
@@ -637,8 +634,9 @@ export default function BankAccountsPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Credit">Credit (Money In)</SelectItem>
-                      <SelectItem value="Debit">Debit (Money Out)</SelectItem>
+                      <SelectItem value="Deposit">Deposit (Money In)</SelectItem>
+                      <SelectItem value="Withdrawal">Withdrawal (Money Out)</SelectItem>
+                      <SelectItem value="Expense">Expense (Money Out)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -655,23 +653,14 @@ export default function BankAccountsPage() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="description">Description</Label>
+                  <Label htmlFor="purpose">Purpose / Description</Label>
                   <Textarea
-                    id="description"
+                    id="purpose"
                     required
-                    value={transactionFormData.description}
-                    onChange={(e) => setTransactionFormData({...transactionFormData, description: e.target.value})}
-                    placeholder="Transaction description"
+                    value={transactionFormData.purpose}
+                    onChange={(e) => setTransactionFormData({...transactionFormData, purpose: e.target.value})}
+                    placeholder="Transaction purpose"
                     rows={3}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="reference_number">Reference Number (Optional)</Label>
-                  <Input
-                    id="reference_number"
-                    value={transactionFormData.reference_number}
-                    onChange={(e) => setTransactionFormData({...transactionFormData, reference_number: e.target.value})}
-                    placeholder="TXN123456"
                   />
                 </div>
                 <div className="flex justify-end space-x-3 pt-4">
@@ -751,23 +740,23 @@ export default function BankAccountsPage() {
                           {new Date(transaction.date).toLocaleDateString('en-IN')}
                         </td>
                         <td className="p-4 text-slate-800">
-                          {accounts.find(acc => acc.id === transaction.bank_account_id)?.bank_name}
+                          {transaction.bank_name} – {transaction.account_no}
                         </td>
                         <td className="p-4">
                           <Badge 
-                            variant={transaction.type === 'Credit' ? 'default' : 'secondary'}
-                            className={transaction.type === 'Credit' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-red-100 text-red-700 border-red-200'}
+                            variant={transaction.type === 'Deposit' ? 'default' : 'secondary'}
+                            className={transaction.type === 'Deposit' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-red-100 text-red-700 border-red-200'}
                           >
                             {transaction.type}
                           </Badge>
                         </td>
                         <td className="p-4">
-                          <span className={`font-semibold ${transaction.type === 'Credit' ? 'text-emerald-600' : 'text-red-600'}`}>
-                            {transaction.type === 'Credit' ? '+' : '-'}₹{transaction.amount.toLocaleString()}
+                          <span className={`font-semibold ${transaction.type === 'Deposit' ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {transaction.type === 'Deposit' ? '+' : '-'}₹{transaction.amount.toLocaleString()}
                           </span>
                         </td>
                         <td className="p-4 text-slate-600 max-w-xs truncate">
-                          {transaction.description}
+                          {transaction.purpose}
                         </td>
                       </tr>
                     ))}
