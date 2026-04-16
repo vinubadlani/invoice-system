@@ -82,7 +82,7 @@ interface Invoice {
   gstin: string
   state: string
   address: string
-  items: InvoiceItem[]
+  items: (InvoiceItem | Record<string, unknown>)[]
   total_tax: number
   discount: number
   other_charges: number
@@ -517,8 +517,8 @@ export default function SalesEntry() {
 
   const handleEdit = useCallback((invoice: Invoice) => {
     // Extract other_charges meta from items if present
-    const metaItem = invoice.items?.find((i: any) => i.__meta__ && i.other_charges)
-    const metaFlags = invoice.items?.find((i: any) => i.__meta__ && 'is_gst' in i)
+    const metaItem = invoice.items?.find((i: any) => i.__meta__ && i.other_charges) as any
+    const metaFlags = invoice.items?.find((i: any) => i.__meta__ && 'is_gst' in i) as any
     const storedOtherCharges = metaItem?.other_charges ?? invoice.other_charges ?? 0
     const storedOtherChargesLabel = metaItem?.other_charges_label ?? invoice.other_charges_label ?? ''
     const cleanItems = invoice.items?.filter((i: any) => !i.__meta__) ?? []
@@ -533,9 +533,10 @@ export default function SalesEntry() {
       other_charges: storedOtherCharges.toString(),
       other_charges_label: storedOtherChargesLabel,
     })
-    setInvoiceItems(cleanItems)
+    setInvoiceItems(cleanItems as InvoiceItem[])
     const initialDrafts: Record<string, { rate: string; qty: string }> = {}
-    invoice.items.forEach(item => {
+    invoice.items.forEach((item: any) => {
+      if (item.__meta__) return
       initialDrafts[item.id] = { rate: item.rate.toString(), qty: item.qty.toString() }
     })
     setItemDraftInputs(initialDrafts)
