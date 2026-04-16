@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, ChevronsUpDown } from "lucide-react"
+import { Check, ChevronsUpDown, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -11,6 +11,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from "@/components/ui/command"
 import {
   Popover,
@@ -35,6 +36,9 @@ interface SearchableSelectProps {
   /** Allow clearing the selection (shows "All …" option) */
   allowAll?: boolean
   allLabel?: string
+  /** Show a "Create new" option at the bottom of the list */
+  onCreateNew?: () => void
+  createNewLabel?: string
 }
 
 export function SearchableSelect({
@@ -48,6 +52,8 @@ export function SearchableSelect({
   className,
   allowAll = false,
   allLabel = "All",
+  onCreateNew,
+  createNewLabel = "Create new…",
 }: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false)
 
@@ -119,6 +125,24 @@ export function SearchableSelect({
                 </CommandItem>
               ))}
             </CommandGroup>
+            {onCreateNew && (
+              <>
+                <CommandSeparator />
+                <CommandGroup>
+                  <CommandItem
+                    value="__create_new__"
+                    onSelect={() => {
+                      setOpen(false)
+                      onCreateNew()
+                    }}
+                    className="text-blue-600 font-medium"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    {createNewLabel}
+                  </CommandItem>
+                </CommandGroup>
+              </>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>

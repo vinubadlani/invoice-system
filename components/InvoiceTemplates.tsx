@@ -36,6 +36,9 @@ interface InvoiceData {
   state: string
   address: string
   round_off?: number
+  discount?: number
+  other_charges?: number
+  other_charges_label?: string
   [key: string]: any
 }
 
@@ -217,6 +220,18 @@ export const ClassicTemplate: React.FC<TemplateProps> = ({ invoice, business }) 
             <span>Tax Total:</span>
             <span>₹{Number(invoice.total_tax || 0).toFixed(2)}</span>
           </div>
+          {Number(invoice.discount || 0) > 0 && (
+            <div className="flex justify-between text-green-700">
+              <span>Discount (-):</span>
+              <span>-₹{Number(invoice.discount || 0).toFixed(2)}</span>
+            </div>
+          )}
+          {Number(invoice.other_charges || 0) > 0 && (
+            <div className="flex justify-between">
+              <span>{invoice.other_charges_label || 'Other Charges'} (+):</span>
+              <span>₹{Number(invoice.other_charges || 0).toFixed(2)}</span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span>Round Off:</span>
             <span>₹{Number(invoice.round_off || 0).toFixed(2)}</span>
@@ -380,6 +395,18 @@ export const ModernTemplate: React.FC<TemplateProps> = ({ invoice, business }) =
                 <span>Tax:</span>
                 <span>₹{Number(invoice.total_tax || 0).toFixed(2)}</span>
               </div>
+              {Number(invoice.discount || 0) > 0 && (
+                <div className="flex justify-between text-sm text-green-700">
+                  <span>Discount (-):</span>
+                  <span>-₹{Number(invoice.discount || 0).toFixed(2)}</span>
+                </div>
+              )}
+              {Number(invoice.other_charges || 0) > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span>{invoice.other_charges_label || 'Other Charges'} (+):</span>
+                  <span>₹{Number(invoice.other_charges || 0).toFixed(2)}</span>
+                </div>
+              )}
               <hr className="border-gray-300" />
               <div className="flex justify-between text-lg font-bold text-blue-600">
                 <span>Total:</span>
@@ -467,6 +494,18 @@ export const ReceiptTemplate: React.FC<TemplateProps> = ({ invoice, business }) 
         <span>Tax:</span>
         <span>₹{Number(invoice.total_tax || 0).toFixed(2)}</span>
       </div>
+      {Number(invoice.discount || 0) > 0 && (
+        <div className="flex justify-between text-green-700">
+          <span>Discount (-):</span>
+          <span>-₹{Number(invoice.discount || 0).toFixed(2)}</span>
+        </div>
+      )}
+      {Number(invoice.other_charges || 0) > 0 && (
+        <div className="flex justify-between">
+          <span>{invoice.other_charges_label || 'Other Charges'} (+):</span>
+          <span>₹{Number(invoice.other_charges || 0).toFixed(2)}</span>
+        </div>
+      )}
       <div className="flex justify-between font-bold">
         <span>TOTAL:</span>
         <span>₹{Number(invoice.net_total || 0).toFixed(2)}</span>
@@ -547,6 +586,18 @@ export const ThermalReceiptTemplate: React.FC<TemplateProps> = ({ invoice, busin
         <span>Tax:</span>
         <span>{Number(invoice.total_tax || 0).toFixed(2)}</span>
       </div>
+      {Number(invoice.discount || 0) > 0 && (
+        <div className="flex justify-between">
+          <span>Discount (-):</span>
+          <span>-{Number(invoice.discount || 0).toFixed(2)}</span>
+        </div>
+      )}
+      {Number(invoice.other_charges || 0) > 0 && (
+        <div className="flex justify-between">
+          <span>{invoice.other_charges_label || 'Other Charges'} (+):</span>
+          <span>{Number(invoice.other_charges || 0).toFixed(2)}</span>
+        </div>
+      )}
       <div className="flex justify-between font-bold text-lg">
         <span>TOTAL:</span>
         <span>{Number(invoice.net_total || 0).toFixed(2)}</span>
@@ -680,6 +731,18 @@ export const CorporateTemplate: React.FC<TemplateProps> = ({ invoice, business }
               <td className="text-right py-2 pr-4 text-gray-600">Tax:</td>
               <td className="text-right py-2 font-semibold">₹{Number(invoice.total_tax || 0).toFixed(2)}</td>
             </tr>
+            {Number(invoice.discount || 0) > 0 && (
+              <tr>
+                <td className="text-right py-2 pr-4 text-green-700">Discount (-):</td>
+                <td className="text-right py-2 font-semibold text-green-700">-₹{Number(invoice.discount || 0).toFixed(2)}</td>
+              </tr>
+            )}
+            {Number(invoice.other_charges || 0) > 0 && (
+              <tr>
+                <td className="text-right py-2 pr-4 text-gray-600">{invoice.other_charges_label || 'Other Charges'} (+):</td>
+                <td className="text-right py-2 font-semibold">₹{Number(invoice.other_charges || 0).toFixed(2)}</td>
+              </tr>
+            )}
             <tr className="border-t-2 border-gray-800">
               <td className="text-right py-3 pr-4 text-lg font-bold">Total:</td>
               <td className="text-right py-3 text-xl font-bold text-indigo-600">₹{Number(invoice.net_total || 0).toFixed(2)}</td>
@@ -1053,6 +1116,18 @@ export const QuotationTemplate: React.FC<TemplateProps> = ({ invoice, business }
               <span className="text-gray-600">Tax (GST):</span>
               <span className="font-semibold">₹{Number(invoice.total_tax || 0).toFixed(2)}</span>
             </div>
+            {Number(invoice.discount || 0) > 0 && (
+              <div className="flex justify-between text-green-700">
+                <span>Discount (-):</span>
+                <span className="font-semibold">-₹{Number(invoice.discount || 0).toFixed(2)}</span>
+              </div>
+            )}
+            {Number(invoice.other_charges || 0) > 0 && (
+              <div className="flex justify-between">
+                <span className="text-gray-600">{invoice.other_charges_label || 'Other Charges'} (+):</span>
+                <span className="font-semibold">₹{Number(invoice.other_charges || 0).toFixed(2)}</span>
+              </div>
+            )}
             <hr className="border-green-300" />
             <div className="flex justify-between text-xl font-bold text-green-600">
               <span>Total Quoted Price:</span>
@@ -1270,6 +1345,18 @@ export const ElegantTemplate: React.FC<TemplateProps> = ({ invoice, business }) 
               <span className="text-gray-700 font-medium">Total Tax:</span>
               <span className="font-semibold">₹{Number(invoice.total_tax || 0).toFixed(2)}</span>
             </div>
+            {Number(invoice.discount || 0) > 0 && (
+              <div className="flex justify-between border-b border-amber-300 pb-2 text-green-700">
+                <span className="font-medium">Discount (-):</span>
+                <span className="font-semibold">-₹{Number(invoice.discount || 0).toFixed(2)}</span>
+              </div>
+            )}
+            {Number(invoice.other_charges || 0) > 0 && (
+              <div className="flex justify-between border-b border-amber-300 pb-2">
+                <span className="text-gray-700 font-medium">{invoice.other_charges_label || 'Other Charges'} (+):</span>
+                <span className="font-semibold">₹{Number(invoice.other_charges || 0).toFixed(2)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-xl font-bold text-amber-800 border-t-2 border-amber-400 pt-3">
               <span>Grand Total:</span>
               <span>₹{Number(invoice.net_total || 0).toFixed(2)}</span>
@@ -1544,6 +1631,26 @@ export const ProfessionalA4Template: React.FC<TemplateProps> = ({ invoice, busin
                   ₹{Number((invoice.total_tax || 0) / 2).toFixed(2)}
                 </td>
               </tr>
+              {Number(invoice.discount || 0) > 0 && (
+                <tr>
+                  <td className="border border-gray-400 px-3 py-2 text-right text-sm font-semibold bg-gray-50 text-green-700">
+                    Discount (-):
+                  </td>
+                  <td className="border border-gray-400 px-3 py-2 text-right text-sm font-semibold text-green-700">
+                    -₹{Number(invoice.discount || 0).toFixed(2)}
+                  </td>
+                </tr>
+              )}
+              {Number(invoice.other_charges || 0) > 0 && (
+                <tr>
+                  <td className="border border-gray-400 px-3 py-2 text-right text-sm font-semibold bg-gray-50">
+                    {invoice.other_charges_label || 'Other Charges'} (+):
+                  </td>
+                  <td className="border border-gray-400 px-3 py-2 text-right text-sm font-semibold">
+                    ₹{Number(invoice.other_charges || 0).toFixed(2)}
+                  </td>
+                </tr>
+              )}
               <tr>
                 <td className="border border-gray-400 px-3 py-2 text-right text-sm font-semibold bg-gray-50">
                   Round Off:

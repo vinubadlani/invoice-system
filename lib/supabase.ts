@@ -484,8 +484,11 @@ export async function insertData(table: string, data: Record<string, any>): Prom
         const partyParams = {
           p_business_id: validatedData.business_id,
           p_name: validatedData.name,
-          p_address: validatedData.address,
-          p_state: validatedData.state,
+          p_mobile: validatedData.mobile || '',
+          p_address: validatedData.address || '',
+          p_city: validatedData.city || '',
+          p_state: validatedData.state || '',
+          p_pincode: validatedData.pincode || '',
           p_email: validatedData.email || null,
           p_gstin: validatedData.gstin || null,
           p_pan: validatedData.pan || null,

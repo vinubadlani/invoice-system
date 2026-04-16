@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Activity, Clock, Database, Zap } from "lucide-react"
+import { Activity, Clock, Database, Zap, X } from "lucide-react"
 
 interface PerformanceMetrics {
   pageLoadTime: number
@@ -16,6 +16,7 @@ interface PerformanceMetrics {
 export default function PerformanceMonitor() {
   const [metrics, setMetrics] = useState<PerformanceMetrics | null>(null)
   const [isVisible, setIsVisible] = useState(false)
+  const [dismissed, setDismissed] = useState(false)
 
   useEffect(() => {
     // Show performance monitor in development
@@ -53,7 +54,7 @@ export default function PerformanceMonitor() {
     return "destructive"
   }
 
-  if (!isVisible || !metrics) return null
+  if (!isVisible || !metrics || dismissed) return null
 
   return (
     <div className="fixed bottom-4 right-4 z-50">
@@ -62,6 +63,13 @@ export default function PerformanceMonitor() {
           <CardTitle className="text-sm flex items-center gap-2">
             <Activity className="h-4 w-4 text-blue-600" />
             Performance Monitor
+            <button
+              onClick={() => setDismissed(true)}
+              className="ml-auto text-gray-400 hover:text-gray-700 transition-colors"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">

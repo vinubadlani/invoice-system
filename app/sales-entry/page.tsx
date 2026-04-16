@@ -84,6 +84,9 @@ interface Invoice {
   address: string
   items: InvoiceItem[]
   total_tax: number
+  discount: number
+  other_charges: number
+  other_charges_label: string
   round_off: number
   net_total: number
   payment_received: number
@@ -101,6 +104,7 @@ export default function SalesEntry() {
   const [itemSearchOpen, setItemSearchOpen] = useState(false)
   const [itemSearchValue, setItemSearchValue] = useState("")
   const [itemDraftInputs, setItemDraftInputs] = useState<Record<string, { rate: string; qty: string }>>({})
+  const [isGst, setIsGst] = useState(true)
   const { toast } = useToast()
   const { selectedBusiness: contextBusiness } = useBusiness()
 
@@ -119,6 +123,9 @@ export default function SalesEntry() {
     party_id: "",
     payment_received: "",
     round_off: "",
+    discount: "",
+    other_charges: "",
+    other_charges_label: "",
   })
   const [invoiceNoError, setInvoiceNoError] = useState<string>("")
 
@@ -271,7 +278,7 @@ export default function SalesEntry() {
 
     const qty = parseFloat(currentItem.qty) || 1
     const rate = parseFloat(currentItem.rate) || selectedItem.sales_price
-    const taxAmount = (rate * qty * selectedItem.gst_percent) / 100
+    const taxAmount = isGst ? (rate * qty * selectedItem.gst_percent) / 100 : 0
     const total = (rate * qty) + taxAmount
 
     const newItem: InvoiceItem = {
@@ -296,7 +303,7 @@ export default function SalesEntry() {
     setCurrentItem({ item_id: "", qty: "1", rate: "" })
     setItemSearchValue("")
     setItemSearchOpen(false)
-  }, [items, currentItem])
+  }, [items, currentItem, isGst])
 
   const removeItemFromInvoice = useCallback((itemId: string) => {
     setInvoiceItems(prev => prev.filter(item => item.id !== itemId))
@@ -312,36 +319,38 @@ export default function SalesEntry() {
     const qtyNum = parseFloat(qty) || 0
     setInvoiceItems(prev => prev.map(item => {
       if (item.id === itemId) {
-        const taxAmount = (item.rate * qtyNum * item.gst_percent) / 100
+        const taxAmount = isGst ? (item.rate * qtyNum * item.gst_percent) / 100 : 0
         const total = (item.rate * qtyNum) + taxAmount
         return { ...item, qty: qtyNum, tax_amount: taxAmount, total }
       }
       return item
     }))
-  }, [])
+  }, [isGst])
 
   const updateItemRate = useCallback((itemId: string, rate: string) => {
     setItemDraftInputs(prev => ({ ...prev, [itemId]: { ...prev[itemId], rate } }))
     const rateNum = parseFloat(rate) || 0
     setInvoiceItems(prev => prev.map(item => {
       if (item.id === itemId) {
-        const taxAmount = (rateNum * item.qty * item.gst_percent) / 100
+        const taxAmount = isGst ? (rateNum * item.qty * item.gst_percent) / 100 : 0
         const total = (rateNum * item.qty) + taxAmount
         return { ...item, rate: rateNum, tax_amount: taxAmount, total }
       }
       return item
     }))
-  }, [])
+  }, [isGst])
 
   const totals = useMemo(() => {
     const totalTax = invoiceItems.reduce((sum, item) => sum + item.tax_amount, 0)
     const subTotal = invoiceItems.reduce((sum, item) => sum + (item.qty * item.rate), 0)
     const roundOff = parseFloat(formData.round_off) || 0
+    const discount = parseFloat(formData.discount) || 0
+    const otherCharges = parseFloat(formData.other_charges) || 0
     const paymentReceived = parseFloat(formData.payment_received) || 0
-    const netTotal = subTotal + totalTax + roundOff
+    const netTotal = subTotal + totalTax - discount + otherCharges + roundOff
     const balanceDue = netTotal - paymentReceived
-    return { totalTax, subTotal, netTotal, balanceDue, roundOff, paymentReceived }
-  }, [invoiceItems, formData.round_off, formData.payment_received])
+    return { totalTax, subTotal, netTotal, balanceDue, roundOff, discount, otherCharges, paymentReceived }
+  }, [invoiceItems, formData.round_off, formData.discount, formData.other_charges, formData.payment_received])
 
   const resetForm = useCallback(() => {
     setFormData({
@@ -350,6 +359,9 @@ export default function SalesEntry() {
       party_id: "",
       payment_received: "",
       round_off: "",
+      discount: "",
+      other_charges: "",
+      other_charges_label: "",
     })
     setInvoiceItems([])
     setItemDraftInputs({})
@@ -358,6 +370,7 @@ export default function SalesEntry() {
     setEditingInvoice(null)
     setItemSearchValue("")
     setInvoiceNoError("")
+    setIsGst(true)
   }, [generateInvoiceNo])
 
   // Optimized form submission
@@ -409,8 +422,17 @@ export default function SalesEntry() {
         gstin: selectedParty.gstin || "",
         state: selectedParty.state,
         address: selectedParty.address,
-        items: invoiceItems,
+        items: [
+          ...invoiceItems,
+          ...(totals.otherCharges > 0 ? [{
+            __meta__: true,
+            other_charges: totals.otherCharges,
+            other_charges_label: formData.other_charges_label || 'Other Charges',
+          }] : []),
+          { __meta__: true, is_gst: isGst },
+        ],
         total_tax: totals.totalTax,
+        discount_amount: totals.discount,
         round_off: totals.roundOff,
         net_total: totals.netTotal,
         payment_received: totals.paymentReceived,
@@ -494,14 +516,24 @@ export default function SalesEntry() {
   }, [businessId, invoiceItems, formData, parties, totals, editingInvoice, toast, resetForm])
 
   const handleEdit = useCallback((invoice: Invoice) => {
+    // Extract other_charges meta from items if present
+    const metaItem = invoice.items?.find((i: any) => i.__meta__ && i.other_charges)
+    const metaFlags = invoice.items?.find((i: any) => i.__meta__ && 'is_gst' in i)
+    const storedOtherCharges = metaItem?.other_charges ?? invoice.other_charges ?? 0
+    const storedOtherChargesLabel = metaItem?.other_charges_label ?? invoice.other_charges_label ?? ''
+    const cleanItems = invoice.items?.filter((i: any) => !i.__meta__) ?? []
+    setIsGst(metaFlags?.is_gst !== false)
     setFormData({
       invoice_no: invoice.invoice_no,
       date: invoice.date,
       party_id: invoice.party_id,
       payment_received: invoice.payment_received.toString(),
       round_off: invoice.round_off.toString(),
+      discount: ((invoice as any).discount_amount ?? invoice.discount ?? 0).toString(),
+      other_charges: storedOtherCharges.toString(),
+      other_charges_label: storedOtherChargesLabel,
     })
-    setInvoiceItems(invoice.items)
+    setInvoiceItems(cleanItems)
     const initialDrafts: Record<string, { rate: string; qty: string }> = {}
     invoice.items.forEach(item => {
       initialDrafts[item.id] = { rate: item.rate.toString(), qty: item.qty.toString() }
@@ -587,9 +619,45 @@ export default function SalesEntry() {
         {isFormOpen && (
           <Card className="shadow-lg">
             <CardHeader className="border-b">
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                {editingInvoice ? "Edit Sales Invoice" : "Create New Invoice"}
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  {editingInvoice ? "Edit Sales Invoice" : "Create New Invoice"}
+                </span>
+                <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsGst(true)
+                      setInvoiceItems(prev => prev.map(item => ({
+                        ...item,
+                        tax_amount: (item.rate * item.qty * item.gst_percent) / 100,
+                        total: (item.rate * item.qty) + (item.rate * item.qty * item.gst_percent) / 100,
+                      })))
+                    }}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      isGst ? 'bg-white text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    With GST
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsGst(false)
+                      setInvoiceItems(prev => prev.map(item => ({
+                        ...item,
+                        tax_amount: 0,
+                        total: item.rate * item.qty,
+                      })))
+                    }}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      !isGst ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Without GST
+                  </button>
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
@@ -864,8 +932,8 @@ export default function SalesEntry() {
                             <TableHead>HSN</TableHead>
                             <TableHead>Qty</TableHead>
                             <TableHead>Rate</TableHead>
-                            <TableHead>GST</TableHead>
-                            <TableHead>Tax Amount</TableHead>
+                            {isGst && <TableHead>GST</TableHead>}
+                            {isGst && <TableHead>Tax Amount</TableHead>}
                             <TableHead>Total</TableHead>
                             <TableHead className="w-[100px]">Action</TableHead>
                           </TableRow>
@@ -899,10 +967,14 @@ export default function SalesEntry() {
                                   className="w-20"
                                 />
                               </TableCell>
-                              <TableCell>
-                                <Badge variant="outline">{item.gst_percent}%</Badge>
-                              </TableCell>
-                              <TableCell>₹{item.tax_amount.toFixed(2)}</TableCell>
+                              {isGst && (
+                                <TableCell>
+                                  <Badge variant="outline">{item.gst_percent}%</Badge>
+                                </TableCell>
+                              )}
+                              {isGst && (
+                                <TableCell>₹{item.tax_amount.toFixed(2)}</TableCell>
+                              )}
                               <TableCell>
                                 <span className="font-medium">₹{item.total.toFixed(2)}</span>
                               </TableCell>
@@ -931,9 +1003,41 @@ export default function SalesEntry() {
                               <span className="font-medium">Subtotal:</span>
                               <span>₹{totals.subTotal.toFixed(2)}</span>
                             </div>
-                            <div className="flex justify-between">
-                              <span className="font-medium">Total Tax:</span>
-                              <span>₹{totals.totalTax.toFixed(2)}</span>
+                            {isGst && (
+                              <div className="flex justify-between">
+                                <span className="font-medium">Total Tax:</span>
+                                <span>₹{totals.totalTax.toFixed(2)}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between items-center">
+                              <Label htmlFor="discount" className="font-medium text-green-700">Discount (-):</Label>
+                              <Input
+                                id="discount"
+                                type="text"
+                                placeholder="0.00"
+                                value={formData.discount}
+                                onChange={(e) => setFormData(prev => ({ ...prev, discount: e.target.value }))}
+                                className="w-24 text-right"
+                              />
+                            </div>
+                            <div className="flex justify-between items-center gap-2">
+                              <div className="flex items-center gap-2 flex-1">
+                                <span className="font-medium text-gray-700 whitespace-nowrap">(+)</span>
+                                <Input
+                                  type="text"
+                                  placeholder="Charges label (e.g. Freight)"
+                                  value={formData.other_charges_label}
+                                  onChange={(e) => setFormData(prev => ({ ...prev, other_charges_label: e.target.value }))}
+                                  className="h-8 text-sm"
+                                />
+                              </div>
+                              <Input
+                                type="text"
+                                placeholder="0.00"
+                                value={formData.other_charges}
+                                onChange={(e) => setFormData(prev => ({ ...prev, other_charges: e.target.value }))}
+                                className="w-24 text-right"
+                              />
                             </div>
                             <div className="flex justify-between items-center">
                               <Label htmlFor="round_off" className="font-medium">Round Off:</Label>

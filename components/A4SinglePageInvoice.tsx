@@ -49,6 +49,10 @@ interface Invoice {
   items: InvoiceItem[];
   subtotal: number;
   round_off?: number;
+  discount?: number;
+  other_charges?: number;
+  other_charges_label?: string;
+  is_gst?: boolean;
   total_tax: number;
   net_total: number;
   payment_received: number;
@@ -95,6 +99,10 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
   const halfTax = totalTax / 2;
   const gstRate = items[0]?.gst_percent ?? 0;
   const roundOff = invoice.round_off ?? 0;
+  const discount = invoice.discount ?? 0;
+  const otherCharges = invoice.other_charges ?? 0;
+  const otherChargesLabel = invoice.other_charges_label || "Other Charges";
+  const isGst = invoice.is_gst !== false;
   const b = invoice.business;
   const p = invoice.party;
 
@@ -198,8 +206,8 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
                 <th className="border-r border-gray-300 px-2 py-1.5 text-left">ITEMS</th>
                 <th className="border-r border-gray-300 px-2 py-1.5 text-center w-16">HSN</th>
                 <th className="border-r border-gray-300 px-2 py-1.5 text-center w-16">QTY.</th>
-                <th className="border-r border-gray-300 px-2 py-1.5 text-right w-20">RATE</th>
-                <th className="border-r border-gray-300 px-2 py-1.5 text-center w-20">TAX</th>
+                <th className={`border-r border-gray-300 px-2 py-1.5 text-right ${isGst ? 'w-20' : 'w-28'}`}>RATE</th>
+                {isGst && <th className="border-r border-gray-300 px-2 py-1.5 text-center w-20">TAX</th>}
                 <th className="px-2 py-1.5 text-right w-24">AMOUNT</th>
               </tr>
             </thead>
@@ -215,8 +223,8 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
                     <td className="border-r border-gray-200 px-2 py-1.5 text-center">{item.hsn_code || "-"}</td>
                     <td className="border-r border-gray-200 px-2 py-1.5 text-center">{item.quantity} {item.unit || "PCS"}</td>
                     <td className="border-r border-gray-200 px-2 py-1.5 text-right">{fmt(item.rate)}</td>
-                    <td className="border-r border-gray-200 px-2 py-1.5 text-center">{item.gst_percent}%<br/><span className="text-gray-500">(₹{fmt(tax)})</span></td>
-                    <td className="px-2 py-1.5 text-right font-medium">{fmt(total)}</td>
+                    {isGst && <td className="border-r border-gray-200 px-2 py-1.5 text-center">{item.gst_percent}%<br/><span className="text-gray-500">(₹{fmt(tax)})</span></td>}
+                    <td className="px-2 py-1.5 text-right font-medium">{fmt(isGst ? total : base)}</td>
                   </tr>
                 );
               })}
@@ -228,7 +236,7 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
                   <td className="border-r border-gray-100 px-2 py-2">&nbsp;</td>
                   <td className="border-r border-gray-100 px-2 py-2">&nbsp;</td>
                   <td className="border-r border-gray-100 px-2 py-2">&nbsp;</td>
-                  <td className="border-r border-gray-100 px-2 py-2">&nbsp;</td>
+                  {isGst && <td className="border-r border-gray-100 px-2 py-2">&nbsp;</td>}
                   <td className="px-2 py-2">&nbsp;</td>
                 </tr>
               ))}
@@ -270,14 +278,30 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
                   <span className="text-gray-600">Taxable Amount</span>
                   <span className="font-semibold">₹ {fmt(subtotal)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">CGST @{gstRate / 2}%</span>
-                  <span className="font-semibold">₹ {fmt(halfTax)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">SGST @{gstRate / 2}%</span>
-                  <span className="font-semibold">₹ {fmt(halfTax)}</span>
-                </div>
+                {isGst && (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">CGST @{gstRate / 2}%</span>
+                      <span className="font-semibold">₹ {fmt(halfTax)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">SGST @{gstRate / 2}%</span>
+                      <span className="font-semibold">₹ {fmt(halfTax)}</span>
+                    </div>
+                  </>
+                )}
+                {discount > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-green-700">Discount (-)</span>
+                    <span className="font-semibold text-green-700">-₹ {fmt(discount)}</span>
+                  </div>
+                )}
+                {otherCharges > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">{otherChargesLabel} (+)</span>
+                    <span className="font-semibold">₹ {fmt(otherCharges)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-gray-600">Round Off</span>
                   <span className="font-semibold">₹ {fmt(roundOff)}</span>

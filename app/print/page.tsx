@@ -68,6 +68,10 @@ type PrintInvoice = {
   }>
   subtotal: number
   round_off?: number
+  discount?: number
+  other_charges?: number
+  other_charges_label?: string
+  is_gst?: boolean
   total_tax: number
   net_total: number
   payment_received: number
@@ -78,7 +82,9 @@ type PrintInvoice = {
 function normalizeInvoiceItems(items: RawInvoiceItem[] | null | undefined) {
   const rows = Array.isArray(items) ? items : []
 
-  return rows.map((item, index) => {
+  return rows
+    .filter((item: any) => !item.__meta__)
+    .map((item, index) => {
     const quantity = Number(item.quantity ?? item.qty ?? 0)
     const rate = Number(item.rate ?? item.price ?? 0)
     const gstPercent = Number(item.gst_percent ?? item.tax_percent ?? 0)
@@ -157,6 +163,15 @@ export default function PrintPage() {
         const lineItems = normalizeInvoiceItems(invoiceData.items)
         const calculatedTotals = calculateTotals(lineItems)
 
+        // Extract other_charges metadata stored inside items JSONB
+        const rawItems = Array.isArray(invoiceData.items) ? invoiceData.items : []
+        const metaOtherCharges = rawItems.find((i: any) => i.__meta__ && i.other_charges)
+        const metaFlags = rawItems.find((i: any) => i.__meta__ && 'is_gst' in i)
+        const otherCharges = metaOtherCharges?.other_charges ?? 0
+        const otherChargesLabel = metaOtherCharges?.other_charges_label ?? ''
+        const discount = Number(invoiceData.discount_amount ?? invoiceData.discount ?? 0)
+        const isGst = metaFlags?.is_gst !== false
+
         setInvoice({
           invoice_number: invoiceData.invoice_no || 'N/A',
           invoice_date: invoiceData.date || new Date().toISOString().split('T')[0],
@@ -187,6 +202,10 @@ export default function PrintPage() {
           items: lineItems,
           subtotal: Number(invoiceData.subtotal ?? calculatedTotals.subtotal),
           round_off: Number(invoiceData.round_off ?? 0),
+          discount: discount,
+          other_charges: otherCharges,
+          other_charges_label: otherChargesLabel,
+          is_gst: isGst,
           total_tax: Number(invoiceData.total_tax ?? calculatedTotals.totalTax),
           net_total: Number(invoiceData.net_total ?? calculatedTotals.netTotal),
           payment_received: Number(invoiceData.payment_received ?? 0),
