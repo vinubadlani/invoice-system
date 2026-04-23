@@ -35,7 +35,7 @@ interface Party {
 
 export default function PartyPage() {
   const [parties, setParties] = useState<Party[]>([])
-  const [filteredParties, setFilteredParties] = useState<Party[]>([])
+  const [activeFilters, setActiveFilters] = useState<FilterValues>({})
   const [loading, setLoading] = useState(true)
   const [businessId, setBusinessId] = useState<string>("")
   const { toast } = useToast()
@@ -110,7 +110,6 @@ export default function PartyPage() {
       setLoading(true)
       const data = await fetchParties(businessId)
       setParties(data)
-      setFilteredParties(data)
     } catch (error) {
       console.error("Error loading parties:", error)
     } finally {
@@ -118,41 +117,40 @@ export default function PartyPage() {
     }
   }, [fetchParties])
 
-  const handleFilterChange = (filters: FilterValues) => {
+  const filteredParties = useMemo(() => {
+    const filters = activeFilters
     let filtered = [...parties]
 
-    // Apply text filters
     if (filters.name) {
-      filtered = filtered.filter(party => 
-        party.name.toLowerCase().includes(filters.name.toLowerCase())
+      filtered = filtered.filter(party =>
+        (party.name || '').toLowerCase().includes(filters.name.toLowerCase())
       )
     }
 
     if (filters.mobile) {
       filtered = filtered.filter(party =>
-        party.mobile.includes(filters.mobile)
+        (party.mobile || '').includes(filters.mobile)
       )
     }
 
     if (filters.city) {
       filtered = filtered.filter(party =>
-        party.city.toLowerCase().includes(filters.city.toLowerCase())
+        (party.city || '').toLowerCase().includes(filters.city.toLowerCase())
       )
     }
 
     if (filters.state) {
       filtered = filtered.filter(party =>
-        party.state.toLowerCase().includes(filters.state.toLowerCase())
+        (party.state || '').toLowerCase().includes(filters.state.toLowerCase())
       )
     }
 
     if (filters.gstin) {
       filtered = filtered.filter(party =>
-        party.gstin?.toLowerCase().includes(filters.gstin.toLowerCase())
+        (party.gstin || '').toLowerCase().includes(filters.gstin.toLowerCase())
       )
     }
 
-    // Apply select filters
     if (filters.type) {
       filtered = filtered.filter(party => party.type === filters.type)
     }
@@ -161,7 +159,11 @@ export default function PartyPage() {
       filtered = filtered.filter(party => party.balance_type === filters.balance_type)
     }
 
-    setFilteredParties(filtered)
+    return filtered
+  }, [parties, activeFilters])
+
+  const handleFilterChange = (filters: FilterValues) => {
+    setActiveFilters(filters)
   }
 
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -214,7 +216,6 @@ export default function PartyPage() {
       // Update local state
       const updatedParties = parties.filter(p => p.id !== party.id)
       setParties(updatedParties)
-      setFilteredParties(updatedParties)
       
       // Clear cache to ensure fresh data
       clearCache()

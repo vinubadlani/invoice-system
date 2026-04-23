@@ -1,6 +1,6 @@
 ﻿"use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { fetchInvoices } from "@/lib/supabase"
 import { Plus, Trash2, Save, FileText, Download, Eye, Edit, Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -37,7 +37,7 @@ const getFinancialYearRange = (financialYear: string) => {
 
 export default function PurchasesPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([])
-  const [filteredPurchases, setFilteredPurchases] = useState<Purchase[]>([])
+  const [activeFilters, setActiveFilters] = useState<FilterValues>({})
   const [loading, setLoading] = useState(true)
   const [businessId, setBusinessId] = useState<string>("")
   const [financialYear, setFinancialYear] = useState<string>("")
@@ -130,7 +130,6 @@ export default function PurchasesPage() {
       })
 
       setPurchases((filtered as unknown as Purchase[]) || [])
-      setFilteredPurchases((filtered as unknown as Purchase[]) || [])
     } catch (error) {
       console.error('Error fetching purchases:', error)
     } finally {
@@ -144,35 +143,34 @@ export default function PurchasesPage() {
     return 'pending'
   }
 
-  const handleFilterChange = (filters: FilterValues) => {
+  const filteredPurchases = useMemo(() => {
+    const filters = activeFilters
     let filtered = [...purchases]
 
-    // Apply text filters
     if (filters.invoice_no) {
-      filtered = filtered.filter(purchase => 
-        purchase.invoice_no.toLowerCase().includes(filters.invoice_no.toLowerCase())
+      filtered = filtered.filter(purchase =>
+        (purchase.invoice_no || '').toLowerCase().includes(filters.invoice_no.toLowerCase())
       )
     }
 
     if (filters.party_name) {
       filtered = filtered.filter(purchase =>
-        purchase.party_name.toLowerCase().includes(filters.party_name.toLowerCase())
+        (purchase.party_name || '').toLowerCase().includes(filters.party_name.toLowerCase())
       )
     }
 
     if (filters.state) {
       filtered = filtered.filter(purchase =>
-        purchase.state?.toLowerCase().includes(filters.state.toLowerCase())
+        (purchase.state || '').toLowerCase().includes(filters.state.toLowerCase())
       )
     }
 
     if (filters.gstin) {
       filtered = filtered.filter(purchase =>
-        purchase.gstin?.toLowerCase().includes(filters.gstin.toLowerCase())
+        (purchase.gstin || '').toLowerCase().includes(filters.gstin.toLowerCase())
       )
     }
 
-    // Apply date range filter
     if (filters.date_range?.from && filters.date_range?.to) {
       filtered = filtered.filter(purchase => {
         const purchaseDate = new Date(purchase.date)
@@ -182,15 +180,13 @@ export default function PurchasesPage() {
       })
     }
 
-    // Apply amount range filter
     if (filters.amount_range) {
       const [min, max] = filters.amount_range.split('-').map(Number)
-      filtered = filtered.filter(purchase => 
+      filtered = filtered.filter(purchase =>
         purchase.net_total >= min && purchase.net_total <= max
       )
     }
 
-    // Apply status filter
     if (filters.status) {
       filtered = filtered.filter(purchase => {
         const status = getPaymentStatus(purchase)
@@ -198,7 +194,11 @@ export default function PurchasesPage() {
       })
     }
 
-    setFilteredPurchases(filtered)
+    return filtered
+  }, [purchases, activeFilters])
+
+  const handleFilterChange = (filters: FilterValues) => {
+    setActiveFilters(filters)
   }
 
   const handleFinancialYearChange = (year: string) => {
@@ -206,7 +206,38 @@ export default function PurchasesPage() {
   }
 
   const handleExport = () => {
-    console.log('Exporting purchases data...')
+    const rows = filteredPurchases
+    if (rows.length === 0) return
+
+    const headers = [
+      'Invoice No', 'Date', 'Party Name', 'State', 'GSTIN',
+      'Net Total', 'Tax Amount', 'Amount Paid', 'Balance Due', 'Status'
+    ]
+
+    const csvRows = rows.map(p => [
+      p.invoice_no,
+      new Date(p.date).toLocaleDateString('en-IN'),
+      p.party_name,
+      p.state || '',
+      p.gstin || '',
+      p.net_total,
+      p.total_tax,
+      p.payment_received,
+      p.balance_due,
+      getPaymentStatus(p)
+    ])
+
+    const csvContent = [headers, ...csvRows]
+      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `purchases_${financialYear}_${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   // Calculate summary statistics

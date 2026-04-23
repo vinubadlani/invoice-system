@@ -188,12 +188,10 @@ export default function SalesPage() {
       }
 
       setSalesData(finalSalesData as unknown as SalesData[])
-      setFilteredData(finalSalesData as unknown as SalesData[])
       setStats(statsResult as unknown as SalesStats)
 
       console.log("=== STATE UPDATE DEBUG ===")
       console.log("Setting salesData with:", finalSalesData.length, "records")
-      console.log("Setting filteredData with:", finalSalesData.length, "records")
       console.log("Stats being set:", statsResult)
 
     } catch (error) {
@@ -254,14 +252,14 @@ export default function SalesPage() {
     }
   }
 
-  // Filter data based on search and filters
+  // Filter data based on search, status and date range
   useEffect(() => {
     let filtered = salesData
 
     if (searchTerm) {
       filtered = filtered.filter(sale => 
-        sale.party_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        sale.invoice_no.toLowerCase().includes(searchTerm.toLowerCase())
+        (sale.party_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (sale.invoice_no || '').toLowerCase().includes(searchTerm.toLowerCase())
       )
     }
 
@@ -269,8 +267,15 @@ export default function SalesPage() {
       filtered = filtered.filter(sale => sale.status === statusFilter)
     }
 
+    if (dateRange && dateRange !== "all") {
+      const daysBack = Number(dateRange)
+      const cutoff = new Date()
+      cutoff.setDate(cutoff.getDate() - daysBack)
+      filtered = filtered.filter(sale => new Date(sale.date) >= cutoff)
+    }
+
     setFilteredData(filtered)
-  }, [salesData, searchTerm, statusFilter])
+  }, [salesData, searchTerm, statusFilter, dateRange])
 
   // Reload data when date range or status filter changes
   useEffect(() => {
@@ -322,6 +327,41 @@ export default function SalesPage() {
       color: colorMap[status as keyof typeof colorMap] || "#6B7280"
     }))
   }, [salesData])
+
+  const handleExport = () => {
+    const rows = filteredData
+    if (rows.length === 0) return
+
+    const headers = [
+      'Invoice No', 'Date', 'Party Name', 'Subtotal', 'GST',
+      'Net Total', 'Amount Paid', 'Balance Due', 'Status', 'Payment Method'
+    ]
+
+    const csvRows = rows.map(s => [
+      s.invoice_no,
+      format(new Date(s.date), 'dd/MM/yyyy'),
+      s.party_name,
+      (s.net_total || 0) - (s.total_tax || 0),
+      s.total_tax || 0,
+      s.net_total || 0,
+      s.payment_received || 0,
+      s.balance_due || 0,
+      s.status,
+      s.payment_method || ''
+    ])
+
+    const csvContent = [headers, ...csvRows]
+      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `sales_${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -384,9 +424,9 @@ export default function SalesPage() {
               <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={handleExport} disabled={filteredData.length === 0}>
               <Download className="mr-2 h-4 w-4" />
-              Export
+              Export ({filteredData.length})
             </Button>
             <Link href="/sales-entry">
               <Button size="sm">

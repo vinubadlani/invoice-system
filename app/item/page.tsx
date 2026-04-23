@@ -32,7 +32,7 @@ interface Item {
 
 export default function ItemMaster() {
   const [items, setItems] = useState<Item[]>([])
-  const [filteredItems, setFilteredItems] = useState<Item[]>([])
+  const [activeFilters, setActiveFilters] = useState<FilterValues>({})
   const [loading, setLoading] = useState(true)
   const [businessId, setBusinessId] = useState<string>("")
   const { toast } = useToast()
@@ -104,7 +104,6 @@ export default function ItemMaster() {
       setLoading(true)
       const data = await fetchItems(businessId)
       setItems(data)
-      setFilteredItems(data)
     } catch (error) {
       console.error("Error loading items:", error)
     } finally {
@@ -112,35 +111,34 @@ export default function ItemMaster() {
     }
   }, [fetchItems])
 
-  const handleFilterChange = (filters: FilterValues) => {
+  const filteredItems = useMemo(() => {
+    const filters = activeFilters
     let filtered = [...items]
 
-    // Apply text filters
     if (filters.name) {
-      filtered = filtered.filter(item => 
-        item.name.toLowerCase().includes(filters.name.toLowerCase())
+      filtered = filtered.filter(item =>
+        (item.name || '').toLowerCase().includes(filters.name.toLowerCase())
       )
     }
 
     if (filters.code) {
       filtered = filtered.filter(item =>
-        item.code.toLowerCase().includes(filters.code.toLowerCase())
+        (item.code || '').toLowerCase().includes(filters.code.toLowerCase())
       )
     }
 
     if (filters.hsn_code) {
       filtered = filtered.filter(item =>
-        (item.hsn_code || "").toLowerCase().includes(filters.hsn_code.toLowerCase())
+        (item.hsn_code || '').toLowerCase().includes(filters.hsn_code.toLowerCase())
       )
     }
 
     if (filters.unit) {
       filtered = filtered.filter(item =>
-        (item.unit || "").toLowerCase().includes(filters.unit.toLowerCase())
+        (item.unit || '').toLowerCase().includes(filters.unit.toLowerCase())
       )
     }
 
-    // Apply select filters
     if (filters.gst_percent) {
       filtered = filtered.filter(item => (item.gst_percent || 0) === Number(filters.gst_percent))
     }
@@ -149,19 +147,19 @@ export default function ItemMaster() {
       filtered = filtered.filter(item => {
         const stock = item.opening_stock || 0
         switch (filters.stock_status) {
-          case 'in_stock':
-            return stock > 10
-          case 'low_stock':
-            return stock > 0 && stock <= 10
-          case 'out_of_stock':
-            return stock === 0
-          default:
-            return true
+          case 'in_stock': return stock > 10
+          case 'low_stock': return stock > 0 && stock <= 10
+          case 'out_of_stock': return stock === 0
+          default: return true
         }
       })
     }
 
-    setFilteredItems(filtered)
+    return filtered
+  }, [items, activeFilters])
+
+  const handleFilterChange = (filters: FilterValues) => {
+    setActiveFilters(filters)
   }
 
   const handleExport = () => {
@@ -270,7 +268,6 @@ export default function ItemMaster() {
           item.id === editingItem.id ? { ...item, ...cleanFormData } : item
         )
         setItems(updatedItems)
-        setFilteredItems(updatedItems)
         setEditingItem(null)
         
         toast({
@@ -381,7 +378,6 @@ export default function ItemMaster() {
       // Update local state
       const updatedItems = items.filter(i => i.id !== item.id)
       setItems(updatedItems)
-      setFilteredItems(updatedItems)
       
       // Clear cache to ensure fresh data
       clearCache()

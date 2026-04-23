@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo, useCallback, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -30,6 +30,11 @@ export default function DataTable({
 }: DataTableProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
+
+  // Reset to page 1 whenever the dataset changes (e.g. external filters applied)
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [data])
 
   // Optimized search with useMemo
   const filteredData = useMemo(() => {
