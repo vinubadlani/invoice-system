@@ -145,7 +145,17 @@ export default function SalesPage() {
       console.log("Sales data result:", salesDataResult)
       console.log("Number of sales found:", salesDataResult.length)
       
-      const finalSalesData = salesDataResult
+      // Deduplicate by invoice ID to ensure one entry per invoice
+      // (in case the API returns multiple rows for same invoice with different line items)
+      const seenIds = new Set<string>()
+      const finalSalesData = salesDataResult.filter((sale: any) => {
+        if (seenIds.has(sale.id)) {
+          return false
+        }
+        seenIds.add(sale.id)
+        return true
+      })
+      
       console.log("Final sales data length:", finalSalesData.length)
       console.log("Final sales data sample:", finalSalesData.slice(0, 2))
       

@@ -129,7 +129,18 @@ export default function PurchasesPage() {
         return d >= start && d <= end
       })
 
-      setPurchases((filtered as unknown as Purchase[]) || [])
+      // Deduplicate by invoice ID to ensure one entry per invoice
+      // (in case the API returns multiple rows for same invoice with different line items)
+      const seenIds = new Set<string>()
+      const deduplicated = filtered.filter((inv: any) => {
+        if (seenIds.has(inv.id)) {
+          return false
+        }
+        seenIds.add(inv.id)
+        return true
+      })
+
+      setPurchases((deduplicated as unknown as Purchase[]) || [])
     } catch (error) {
       console.error('Error fetching purchases:', error)
     } finally {
