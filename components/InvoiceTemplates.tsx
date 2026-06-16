@@ -24,12 +24,13 @@ interface Business {
 interface InvoiceData {
   id: string
   invoice_no: string
+  date: string
+  due_date?: string
   party_name: string
   total_tax: number
   net_total: number
   payment_received: number
   balance_due: number
-  date: string
   status?: string
   items: any[]
   gstin?: string
@@ -39,6 +40,15 @@ interface InvoiceData {
   discount?: number
   other_charges?: number
   other_charges_label?: string
+  invoice_terms?: string
+  invoice_footer?: string
+  invoice_payment_details?: {
+    bank_name?: string
+    account_number?: string
+    ifsc_code?: string
+    upi_id?: string
+    qr_code_url?: string
+  }
   [key: string]: any
 }
 
@@ -103,6 +113,10 @@ function numberToWords(num: number): string {
   return result.trim();
 }
 
+function getInvoiceLineItems(items: any[]) {
+  return Array.isArray(items) ? items.filter((item) => !item?.__meta__) : []
+}
+
 export const ClassicTemplate: React.FC<TemplateProps> = ({ invoice, business }) => (
   <div className="bg-white p-8 print:p-6 max-w-4xl mx-auto">
     {/* Header */}
@@ -122,7 +136,7 @@ export const ClassicTemplate: React.FC<TemplateProps> = ({ invoice, business }) 
           <div className="text-sm space-y-1">
             <p><strong>Invoice No:</strong> {invoice.invoice_no}</p>
             <p><strong>Date:</strong> {new Date(invoice.date).toLocaleDateString('en-IN')}</p>
-            <p><strong>Due Date:</strong> {new Date(new Date(invoice.date).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN')}</p>
+            <p><strong>Due Date:</strong> {invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('en-IN') : new Date(new Date(invoice.date).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN')}</p>
           </div>
         </div>
       </div>
@@ -157,42 +171,16 @@ export const ClassicTemplate: React.FC<TemplateProps> = ({ invoice, business }) 
             <span>Balance Due:</span>
             <span className="font-semibold">₹{Number(invoice.balance_due || 0).toFixed(2)}</span>
           </div>
+          {invoice.invoice_payment_details && (
+            <div className="mt-3 text-sm text-gray-700 space-y-1">
+              {invoice.invoice_payment_details.bank_name && <div><strong>Bank:</strong> {invoice.invoice_payment_details.bank_name}</div>}
+              {invoice.invoice_payment_details.account_number && <div><strong>Acc No:</strong> {invoice.invoice_payment_details.account_number}</div>}
+              {invoice.invoice_payment_details.ifsc_code && <div><strong>IFSC:</strong> {invoice.invoice_payment_details.ifsc_code}</div>}
+              {invoice.invoice_payment_details.upi_id && <div><strong>UPI:</strong> {invoice.invoice_payment_details.upi_id}</div>}
+            </div>
+          )}
         </div>
       </div>
-    </div>
-
-    {/* Items Table */}
-    <div className="mb-8">
-      <table className="w-full border-collapse border border-gray-400">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="border border-gray-400 px-4 py-3 text-left">S.No</th>
-            <th className="border border-gray-400 px-4 py-3 text-left">Description</th>
-            <th className="border border-gray-400 px-4 py-3 text-center">HSN</th>
-            <th className="border border-gray-400 px-4 py-3 text-center">Qty</th>
-            <th className="border border-gray-400 px-4 py-3 text-right">Rate</th>
-            <th className="border border-gray-400 px-4 py-3 text-right">Amount</th>
-            <th className="border border-gray-400 px-4 py-3 text-center">GST%</th>
-            <th className="border border-gray-400 px-4 py-3 text-right">Tax</th>
-            <th className="border border-gray-400 px-4 py-3 text-right">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {invoice.items && Array.isArray(invoice.items) && invoice.items.map((item, index) => (
-            <tr key={item.id || index}>
-              <td className="border border-gray-400 px-4 py-3">{index + 1}</td>
-              <td className="border border-gray-400 px-4 py-3">{item.item_name || item.itemName || item.name || 'Item'}</td>
-              <td className="border border-gray-400 px-4 py-3 text-center">{item.hsn_code || item.hsn || 'N/A'}</td>
-              <td className="border border-gray-400 px-4 py-3 text-center">{item.quantity || item.qty || 1}</td>
-              <td className="border border-gray-400 px-4 py-3 text-right">₹{Number(item.rate || 0).toFixed(2)}</td>
-              <td className="border border-gray-400 px-4 py-3 text-right">₹{(Number(item.quantity || item.qty || 0) * Number(item.rate || 0)).toFixed(2)}</td>
-              <td className="border border-gray-400 px-4 py-3 text-center">{item.gst_percent || item.gstPercent || 0}%</td>
-              <td className="border border-gray-400 px-4 py-3 text-right">₹{Number(item.tax_amount || item.taxAmount || 0).toFixed(2)}</td>
-              <td className="border border-gray-400 px-4 py-3 text-right font-semibold">₹{Number(item.total || (Number(item.quantity || item.qty || 0) * Number(item.rate || 0)) + Number(item.tax_amount || item.taxAmount || 0)).toFixed(2)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
 
     {/* Summary */}
@@ -264,12 +252,16 @@ export const ClassicTemplate: React.FC<TemplateProps> = ({ invoice, business }) 
         <div className="w-1/2">
           <h4 className="font-semibold text-gray-900 mb-2">Terms & Conditions:</h4>
           <div className="text-xs text-gray-600 space-y-1">
-            {business.terms_conditions ? (
-              <p>{business.terms_conditions}</p>
+            {invoice.invoice_terms ? (
+              invoice.invoice_terms.split('\n').map((line, index) => (
+                <p key={index}>{line}</p>
+              ))
+            ) : business.terms_conditions ? (
+              business.terms_conditions.split('\n').map((line, index) => (
+                <p key={index}>{line}</p>
+              ))
             ) : (
               <>
-                <p>1. Goods once sold will not be taken back or exchanged</p>
-                <p>2. Interest @ 18% per annum will be charged on overdue amounts</p>
                 <p>3. All disputes are subject to local jurisdiction only</p>
                 <p>4. Payment to be made by cheque/DD in favour of {business.name}</p>
               </>
@@ -287,6 +279,11 @@ export const ClassicTemplate: React.FC<TemplateProps> = ({ invoice, business }) 
     </div>
 
     {/* Footer Note */}
+    {invoice.invoice_footer && (
+      <div className="mt-4 p-4 bg-gray-50 border border-gray-200 text-sm text-gray-700 whitespace-pre-line">
+        {invoice.invoice_footer}
+      </div>
+    )}
     <div className="mt-6 pt-4 border-t border-gray-200 text-center">
       <p className="text-xs text-gray-500">
         This is a computer generated invoice and does not require physical signature.
@@ -337,7 +334,11 @@ export const ModernTemplate: React.FC<TemplateProps> = ({ invoice, business }) =
           <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">Invoice Details</h3>
           <div className="text-sm space-y-1">
             <p>Date: {new Date(invoice.date).toLocaleDateString('en-IN')}</p>
-            <p>Due: {new Date(new Date(invoice.date).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN')}</p>
+            {invoice.due_date ? (
+              <p>Due: {new Date(invoice.due_date).toLocaleDateString('en-IN')}</p>
+            ) : (
+              <p>Due: {new Date(new Date(invoice.date).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN')}</p>
+            )}
             <p className={`inline-block px-2 py-1 rounded text-xs font-medium ${
               invoice.status === 'paid' ? 'bg-green-100 text-green-800' :
               invoice.status === 'partial' ? 'bg-yellow-100 text-yellow-800' :
@@ -363,7 +364,7 @@ export const ModernTemplate: React.FC<TemplateProps> = ({ invoice, business }) =
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {invoice.items && Array.isArray(invoice.items) && invoice.items.map((item, index) => (
+              {getInvoiceLineItems(invoice.items).map((item, index) => (
                 <tr key={item.id || index} className="hover:bg-gray-50">
                   <td className="px-4 py-4">
                     <div>
@@ -469,7 +470,7 @@ export const ReceiptTemplate: React.FC<TemplateProps> = ({ invoice, business }) 
 
     {/* Items */}
     <div className="space-y-1 mb-3">
-      {invoice.items && Array.isArray(invoice.items) && invoice.items.map((item, index) => (
+      {getInvoiceLineItems(invoice.items).map((item, index) => (
         <div key={item.id || index} className="text-xs">
           <div className="flex justify-between">
             <span className="truncate pr-2">{item.item_name || item.itemName || item.name || 'Item'}</span>
@@ -561,7 +562,7 @@ export const ThermalReceiptTemplate: React.FC<TemplateProps> = ({ invoice, busin
 
     {/* Items */}
     <div className="mb-2">
-      {invoice.items && Array.isArray(invoice.items) && invoice.items.map((item, index) => (
+      {getInvoiceLineItems(invoice.items).map((item, index) => (
         <div key={item.id || index} className="mb-1">
           <div className="flex justify-between">
             <span className="truncate pr-1">{(item.item_name || item.itemName || item.name || 'Item').substring(0, 18)}</span>
@@ -667,11 +668,11 @@ export const CorporateTemplate: React.FC<TemplateProps> = ({ invoice, business }
           </div>
           <div className="flex justify-between">
             <span className="text-gray-600">Due Date:</span>
-            <span className="font-semibold">{new Date(new Date(invoice.date).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN')}</span>
+            <span className="font-semibold">{invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('en-IN') : new Date(new Date(invoice.date).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN')}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-600">Payment Terms:</span>
-            <span className="font-semibold">Net 30</span>
+            <span className="font-semibold">{invoice.invoice_terms ? invoice.invoice_terms.split('\n')[0] : 'Net 30'}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-600">Status:</span>
@@ -700,7 +701,7 @@ export const CorporateTemplate: React.FC<TemplateProps> = ({ invoice, business }
           </tr>
         </thead>
         <tbody>
-          {invoice.items && Array.isArray(invoice.items) && invoice.items.map((item, index) => (
+          {getInvoiceLineItems(invoice.items).map((item, index) => (
             <tr key={item.id || index} className="even:bg-gray-50">
               <td className="border border-gray-300 px-4 py-3">
                 <div>
@@ -766,17 +767,26 @@ export const CorporateTemplate: React.FC<TemplateProps> = ({ invoice, business }
         <div>
           <h4 className="font-semibold text-gray-800 mb-2">Payment Information</h4>
           <div className="text-sm text-gray-600 space-y-1">
-            <p><strong>Bank:</strong> {business.bank_name || 'Bank Name'}</p>
-            <p><strong>Account:</strong> {business.account_no || 'Account Number'}</p>
-            <p><strong>IFSC:</strong> {business.ifsc_code || 'IFSC Code'}</p>
+            <p><strong>Bank:</strong> {invoice.invoice_payment_details?.bank_name || business.bank_name || 'Bank Name'}</p>
+            <p><strong>Account:</strong> {invoice.invoice_payment_details?.account_number || business.account_no || 'Account Number'}</p>
+            <p><strong>IFSC:</strong> {invoice.invoice_payment_details?.ifsc_code || business.ifsc_code || 'IFSC Code'}</p>
+            {invoice.invoice_payment_details?.upi_id || business.upi_id ? <p><strong>UPI:</strong> {invoice.invoice_payment_details?.upi_id || business.upi_id}</p> : null}
           </div>
         </div>
         <div>
           <h4 className="font-semibold text-gray-800 mb-2">Terms & Conditions</h4>
           <div className="text-sm text-gray-600 space-y-1">
-            <p>• Payment is due within 30 days</p>
-            <p>• Late payments may incur charges</p>
-            <p>• Goods once sold cannot be returned</p>
+            {invoice.invoice_terms ? (
+              invoice.invoice_terms.split('\n').map((line, index) => <p key={index}>• {line}</p>)
+            ) : business.terms_conditions ? (
+              business.terms_conditions.split('\n').map((line, index) => <p key={index}>• {line}</p>)
+            ) : (
+              <>
+                <p>• Payment is due within 30 days</p>
+                <p>• Late payments may incur charges</p>
+                <p>• Goods once sold cannot be returned</p>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -840,8 +850,8 @@ export const ShippingLabelTemplate: React.FC<TemplateProps> = ({ invoice, busine
       <div className="border border-gray-400 p-3">
         <h3 className="font-bold text-sm mb-2">WEIGHT</h3>
         <p className="text-lg font-semibold">
-          {invoice.items && Array.isArray(invoice.items) 
-            ? `${invoice.items.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0)} kg`
+          {getInvoiceLineItems(invoice.items).length
+            ? `${getInvoiceLineItems(invoice.items).reduce((sum, item) => sum + (Number(item.quantity) || 1), 0)} kg`
             : '1 kg'
           }
         </p>
@@ -852,7 +862,7 @@ export const ShippingLabelTemplate: React.FC<TemplateProps> = ({ invoice, busine
     <div className="border-2 border-gray-400 p-4 mb-8">
       <h3 className="text-lg font-bold mb-3">PACKAGE CONTENTS</h3>
       <div className="space-y-2">
-        {invoice.items && Array.isArray(invoice.items) && invoice.items.map((item, index) => (
+        {getInvoiceLineItems(invoice.items).map((item, index) => (
           <div key={item.id || index} className="flex justify-between border-b border-gray-200 pb-1">
             <span>{item.item_name || item.itemName || item.name || 'Item'}</span>
             <span>Qty: {item.quantity || item.qty || 1}</span>
@@ -944,7 +954,7 @@ export const DeliveryNoteTemplate: React.FC<TemplateProps> = ({ invoice, busines
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {invoice.items && Array.isArray(invoice.items) && invoice.items.map((item, index) => (
+            {getInvoiceLineItems(invoice.items).map((item, index) => (
               <tr key={item.id || index} className="hover:bg-gray-50">
                 <td className="px-4 py-3">
                   <div>
@@ -1053,7 +1063,7 @@ export const QuotationTemplate: React.FC<TemplateProps> = ({ invoice, business }
           </div>
           <div className="flex justify-between">
             <span className="text-gray-600">Valid Until:</span>
-            <span className="font-semibold">{new Date(new Date(invoice.date).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN')}</span>
+            <span className="font-semibold">{invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('en-IN') : new Date(new Date(invoice.date).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN')}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-600">Delivery Time:</span>
@@ -1061,7 +1071,7 @@ export const QuotationTemplate: React.FC<TemplateProps> = ({ invoice, business }
           </div>
           <div className="flex justify-between">
             <span className="text-gray-600">Payment Terms:</span>
-            <span className="font-semibold">50% advance</span>
+            <span className="font-semibold">{invoice.invoice_terms ? invoice.invoice_terms.split('\n')[0] : '50% advance'}</span>
           </div>
         </div>
       </div>
@@ -1082,7 +1092,7 @@ export const QuotationTemplate: React.FC<TemplateProps> = ({ invoice, business }
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {invoice.items && Array.isArray(invoice.items) && invoice.items.map((item, index) => (
+            {getInvoiceLineItems(invoice.items).map((item, index) => (
               <tr key={item.id || index} className="hover:bg-gray-50">
                 <td className="px-4 py-4">
                   <div>
@@ -1265,11 +1275,11 @@ export const ElegantTemplate: React.FC<TemplateProps> = ({ invoice, business }) 
           </div>
           <div className="flex justify-between border-b border-gray-200 pb-2">
             <span className="text-gray-600 font-medium">Due Date:</span>
-            <span className="font-semibold">{new Date(new Date(invoice.date).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN')}</span>
+            <span className="font-semibold">{invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('en-IN') : new Date(new Date(invoice.date).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN')}</span>
           </div>
           <div className="flex justify-between border-b border-gray-200 pb-2">
             <span className="text-gray-600 font-medium">Payment Terms:</span>
-            <span className="font-semibold">Net 30 days</span>
+            <span className="font-semibold">{invoice.invoice_terms ? invoice.invoice_terms.split('\n')[0] : 'Net 30 days'}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-600 font-medium">Status:</span>
@@ -1312,7 +1322,7 @@ export const ElegantTemplate: React.FC<TemplateProps> = ({ invoice, business }) 
             </tr>
           </thead>
           <tbody>
-            {invoice.items && Array.isArray(invoice.items) && invoice.items.map((item, index) => (
+            {getInvoiceLineItems(invoice.items).map((item, index) => (
               <tr key={item.id || index} className="border-b border-gray-100 hover:bg-amber-25">
                 <td className="px-6 py-4">
                   <div>
@@ -1397,12 +1407,17 @@ export const ElegantTemplate: React.FC<TemplateProps> = ({ invoice, business }) 
         </h4>
         <div className="bg-gray-50 border-l-4 border-gray-400 p-4 rounded">
           <div className="text-sm space-y-2 text-gray-700">
-            <p>• Payment is due within 30 days of invoice date</p>
-            <p>• Late payment charges may apply after due date</p>
-            <p>• All goods sold are not returnable</p>
-            <p>• This invoice is computer generated and valid without signature</p>
-            {business.terms_conditions && (
+            {invoice.invoice_terms ? (
+              invoice.invoice_terms.split('\n').map((line, index) => <p key={index}>• {line}</p>)
+            ) : business.terms_conditions ? (
               <p>• {business.terms_conditions}</p>
+            ) : (
+              <>
+                <p>• Payment is due within 30 days of invoice date</p>
+                <p>• Late payment charges may apply after due date</p>
+                <p>• All goods sold are not returnable</p>
+                <p>• This invoice is computer generated and valid without signature</p>
+              </>
             )}
           </div>
         </div>
@@ -1415,6 +1430,12 @@ export const ElegantTemplate: React.FC<TemplateProps> = ({ invoice, business }) 
         <span className="font-serif font-bold">Amount in Words:</span> {numberToWords(invoice.net_total)} Rupees Only
       </p>
     </div>
+
+    {invoice.invoice_footer && (
+      <div className="mb-6 p-4 bg-amber-50 border border-amber-200 text-sm text-gray-700 whitespace-pre-line">
+        {invoice.invoice_footer}
+      </div>
+    )}
 
     {/* Elegant Footer */}
     <div className="border-t-2 border-amber-300 pt-6">
@@ -1494,7 +1515,7 @@ export const ProfessionalA4Template: React.FC<TemplateProps> = ({ invoice, busin
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Due Date:</span>
-                <span className="font-semibold">{new Date(new Date(invoice.date).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN')}</span>
+                <span className="font-semibold">{invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('en-IN') : new Date(new Date(invoice.date).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN')}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Place of Supply:</span>
@@ -1537,7 +1558,7 @@ export const ProfessionalA4Template: React.FC<TemplateProps> = ({ invoice, busin
             </tr>
           </thead>
           <tbody>
-            {invoice.items && Array.isArray(invoice.items) && invoice.items.map((item, index) => (
+{getInvoiceLineItems(invoice.items).map((item, index) => (
               <tr key={item.id || index}>
                 <td className="border border-gray-400 px-3 py-2 text-center text-sm">
                   {index + 1}
@@ -1567,7 +1588,7 @@ export const ProfessionalA4Template: React.FC<TemplateProps> = ({ invoice, busin
             ))}
             
             {/* Add empty rows to fill space if needed */}
-            {invoice.items && invoice.items.length < 10 && Array.from({ length: 10 - invoice.items.length }).map((_, index) => (
+            {getInvoiceLineItems(invoice.items).length < 10 && Array.from({ length: 10 - getInvoiceLineItems(invoice.items).length }).map((_, index) => (
               <tr key={`empty-${index}`}>
                 <td className="border border-gray-400 px-3 py-2 text-center text-sm">&nbsp;</td>
                 <td className="border border-gray-400 px-3 py-2 text-sm">&nbsp;</td>
@@ -1677,7 +1698,9 @@ export const ProfessionalA4Template: React.FC<TemplateProps> = ({ invoice, busin
         <div>
           <h4 className="text-sm font-bold text-gray-800 mb-2">Terms & Conditions:</h4>
           <div className="text-xs space-y-1 text-gray-700">
-            {business.terms_conditions ? (
+            {invoice.invoice_terms ? (
+              invoice.invoice_terms.split('\n').map((line, index) => <p key={index}>{line}</p>)
+            ) : business.terms_conditions ? (
               <p>{business.terms_conditions}</p>
             ) : (
               <>

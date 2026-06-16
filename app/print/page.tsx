@@ -32,6 +32,7 @@ type RawInvoiceItem = {
 type PrintInvoice = {
   invoice_number: string
   invoice_date: string
+  due_date?: string
   business: {
     name: string
     address: string
@@ -77,6 +78,15 @@ type PrintInvoice = {
   payment_received: number
   balance_due: number
   notes?: string
+  invoice_terms?: string
+  invoice_footer?: string
+  invoice_payment_details?: {
+    bank_name?: string
+    account_number?: string
+    ifsc_code?: string
+    upi_id?: string
+    qr_code_url?: string
+  }
 }
 
 function normalizeInvoiceItems(items: RawInvoiceItem[] | null | undefined) {
@@ -167,6 +177,9 @@ export default function PrintPage() {
         const rawItems = Array.isArray(invoiceData.items) ? invoiceData.items : []
         const metaOtherCharges = rawItems.find((i: any) => i.__meta__ && i.other_charges)
         const metaFlags = rawItems.find((i: any) => i.__meta__ && 'is_gst' in i)
+        const paymentMeta = rawItems.find((i: any) => i.__meta__ && i.invoice_payment_details)
+        const termsMeta = rawItems.find((i: any) => i.__meta__ && typeof i.invoice_terms === 'string')
+        const footerMeta = rawItems.find((i: any) => i.__meta__ && typeof i.invoice_footer === 'string')
         const otherCharges = metaOtherCharges?.other_charges ?? 0
         const otherChargesLabel = metaOtherCharges?.other_charges_label ?? ''
         const discount = Number(invoiceData.discount_amount ?? invoiceData.discount ?? 0)
@@ -175,6 +188,7 @@ export default function PrintPage() {
         setInvoice({
           invoice_number: invoiceData.invoice_no || 'N/A',
           invoice_date: invoiceData.date || new Date().toISOString().split('T')[0],
+          due_date: invoiceData.due_date || undefined,
           business: {
             name: businessData.name || '',
             address: businessData.address || '',
@@ -210,7 +224,10 @@ export default function PrintPage() {
           net_total: Number(invoiceData.net_total ?? calculatedTotals.netTotal),
           payment_received: Number(invoiceData.payment_received ?? 0),
           balance_due: Number(invoiceData.balance_due ?? 0),
-          notes: invoiceData.notes || businessData.terms_conditions || '',
+          notes: invoiceData.notes || '',
+          invoice_terms: termsMeta?.invoice_terms,
+          invoice_footer: footerMeta?.invoice_footer,
+          invoice_payment_details: paymentMeta?.invoice_payment_details,
         })
       } catch (loadError: any) {
         setError(loadError?.message || 'Failed to load invoice')

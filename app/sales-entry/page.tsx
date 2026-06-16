@@ -8,6 +8,7 @@ import { Plus, Edit, Trash2, Save, X, Loader2, Search, Calculator, Receipt, File
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -77,6 +78,7 @@ interface Invoice {
   id: string
   invoice_no: string
   date: string
+  due_date?: string | null
   party_id: string
   party_name: string
   gstin: string
@@ -92,6 +94,43 @@ interface Invoice {
   payment_received: number
   balance_due: number
   type: "sales" | "purchase"
+}
+
+const SOFTWARE_DEFAULT_TERMS = [
+  "1. Subscription fees are non-refundable.",
+  "2. Support available during subscription period.",
+  "3. License is non-transferable.",
+  "4. All disputes subject to Indore jurisdiction.",
+].join("\n")
+
+const DEFAULT_INVOICE_FOOTER = [
+  "Thank you for choosing WPlus.",
+  "For support: help.wplus@gmail.com | +91 8435232987",
+].join("\n")
+
+function getDefaultDueDate() {
+  return new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+}
+
+function createInitialFormData(invoiceNo = "") {
+  return {
+    invoice_no: invoiceNo,
+    date: new Date().toISOString().split('T')[0],
+    due_date: getDefaultDueDate(),
+    party_id: "",
+    payment_received: "",
+    round_off: "",
+    discount: "",
+    other_charges: "",
+    other_charges_label: "",
+    payment_bank_name: "",
+    payment_account_number: "",
+    payment_ifsc_code: "",
+    payment_upi_id: "",
+    payment_qr_code_url: "",
+    invoice_terms: SOFTWARE_DEFAULT_TERMS,
+    invoice_footer: DEFAULT_INVOICE_FOOTER,
+  }
 }
 
 export default function SalesEntry() {
@@ -117,16 +156,7 @@ export default function SalesEntry() {
   const [items, setItems] = useState<Item[]>([])
   const [business, setBusiness] = useState<Business | null>(null)
 
-  const [formData, setFormData] = useState({
-    invoice_no: "",
-    date: new Date().toISOString().split('T')[0],
-    party_id: "",
-    payment_received: "",
-    round_off: "",
-    discount: "",
-    other_charges: "",
-    other_charges_label: "",
-  })
+  const [formData, setFormData] = useState(createInitialFormData())
   const [invoiceNoError, setInvoiceNoError] = useState<string>("")
 
   const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([])
@@ -353,16 +383,7 @@ export default function SalesEntry() {
   }, [invoiceItems, formData.round_off, formData.discount, formData.other_charges, formData.payment_received])
 
   const resetForm = useCallback(() => {
-    setFormData({
-      invoice_no: generateInvoiceNo(),
-      date: new Date().toISOString().split('T')[0],
-      party_id: "",
-      payment_received: "",
-      round_off: "",
-      discount: "",
-      other_charges: "",
-      other_charges_label: "",
-    })
+    setFormData(createInitialFormData(generateInvoiceNo()))
     setInvoiceItems([])
     setItemDraftInputs({})
     setCurrentItem({ item_id: "", qty: "1", rate: "" })
@@ -417,6 +438,7 @@ export default function SalesEntry() {
         business_id: businessId,
         invoice_no: formData.invoice_no,
         date: formData.date,
+        due_date: formData.due_date || null,
         party_id: formData.party_id,
         party_name: selectedParty.name,
         gstin: selectedParty.gstin || "",
@@ -430,6 +452,18 @@ export default function SalesEntry() {
             other_charges_label: formData.other_charges_label || 'Other Charges',
           }] : []),
           { __meta__: true, is_gst: isGst },
+          {
+            __meta__: true,
+            invoice_payment_details: {
+              bank_name: formData.payment_bank_name,
+              account_number: formData.payment_account_number,
+              ifsc_code: formData.payment_ifsc_code,
+              upi_id: formData.payment_upi_id,
+              qr_code_url: formData.payment_qr_code_url,
+            }
+          },
+          { __meta__: true, invoice_terms: formData.invoice_terms },
+          { __meta__: true, invoice_footer: formData.invoice_footer },
         ],
         total_tax: totals.totalTax,
         discount_amount: totals.discount,
@@ -519,6 +553,9 @@ export default function SalesEntry() {
     // Extract other_charges meta from items if present
     const metaItem = invoice.items?.find((i: any) => i.__meta__ && i.other_charges) as any
     const metaFlags = invoice.items?.find((i: any) => i.__meta__ && 'is_gst' in i) as any
+    const paymentMeta = invoice.items?.find((i: any) => i.__meta__ && i.invoice_payment_details) as any
+    const termsMeta = invoice.items?.find((i: any) => i.__meta__ && typeof i.invoice_terms === 'string') as any
+    const footerMeta = invoice.items?.find((i: any) => i.__meta__ && typeof i.invoice_footer === 'string') as any
     const storedOtherCharges = metaItem?.other_charges ?? invoice.other_charges ?? 0
     const storedOtherChargesLabel = metaItem?.other_charges_label ?? invoice.other_charges_label ?? ''
     const cleanItems = invoice.items?.filter((i: any) => !i.__meta__) ?? []
@@ -526,12 +563,20 @@ export default function SalesEntry() {
     setFormData({
       invoice_no: invoice.invoice_no,
       date: invoice.date,
+      due_date: invoice.due_date || new Date(new Date(invoice.date).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       party_id: invoice.party_id,
       payment_received: invoice.payment_received.toString(),
       round_off: invoice.round_off.toString(),
       discount: ((invoice as any).discount_amount ?? invoice.discount ?? 0).toString(),
       other_charges: storedOtherCharges.toString(),
       other_charges_label: storedOtherChargesLabel,
+      payment_bank_name: paymentMeta?.invoice_payment_details?.bank_name || '',
+      payment_account_number: paymentMeta?.invoice_payment_details?.account_number || '',
+      payment_ifsc_code: paymentMeta?.invoice_payment_details?.ifsc_code || '',
+      payment_upi_id: paymentMeta?.invoice_payment_details?.upi_id || '',
+      payment_qr_code_url: paymentMeta?.invoice_payment_details?.qr_code_url || '',
+      invoice_terms: termsMeta?.invoice_terms || SOFTWARE_DEFAULT_TERMS,
+      invoice_footer: footerMeta?.invoice_footer || DEFAULT_INVOICE_FOOTER,
     })
     setInvoiceItems(cleanItems as InvoiceItem[])
     const initialDrafts: Record<string, { rate: string; qty: string }> = {}
@@ -689,7 +734,7 @@ export default function SalesEntry() {
                 )}
 
                 {/* Invoice Header */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div>
                     <Label htmlFor="invoice_no" className="text-sm font-medium">Invoice Number *</Label>
                     <Input
@@ -714,6 +759,16 @@ export default function SalesEntry() {
                       required
                       value={formData.date}
                       onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="due_date" className="text-sm font-medium">Due Date</Label>
+                    <Input
+                      id="due_date"
+                      type="date"
+                      value={formData.due_date}
+                      onChange={(e) => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
                       className="mt-1"
                     />
                   </div>
@@ -755,6 +810,61 @@ export default function SalesEntry() {
                 )}
 
                 <Separator />
+
+                {/* Payment Details */}
+                <Card className="bg-gray-50 border-dashed">
+                  <CardContent className="p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="payment_bank_name" className="text-sm font-medium">Bank Name</Label>
+                        <Input
+                          id="payment_bank_name"
+                          value={formData.payment_bank_name}
+                          onChange={(e) => setFormData(prev => ({ ...prev, payment_bank_name: e.target.value }))}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="payment_account_number" className="text-sm font-medium">Account Number</Label>
+                        <Input
+                          id="payment_account_number"
+                          value={formData.payment_account_number}
+                          onChange={(e) => setFormData(prev => ({ ...prev, payment_account_number: e.target.value }))}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="payment_ifsc_code" className="text-sm font-medium">IFSC Code</Label>
+                        <Input
+                          id="payment_ifsc_code"
+                          value={formData.payment_ifsc_code}
+                          onChange={(e) => setFormData(prev => ({ ...prev, payment_ifsc_code: e.target.value }))}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="payment_upi_id" className="text-sm font-medium">UPI ID</Label>
+                        <Input
+                          id="payment_upi_id"
+                          value={formData.payment_upi_id}
+                          onChange={(e) => setFormData(prev => ({ ...prev, payment_upi_id: e.target.value }))}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <Label htmlFor="payment_qr_code_url" className="text-sm font-medium">QR Code URL</Label>
+                        <Input
+                          id="payment_qr_code_url"
+                          type="url"
+                          value={formData.payment_qr_code_url}
+                          onChange={(e) => setFormData(prev => ({ ...prev, payment_qr_code_url: e.target.value }))}
+                          placeholder="https://..."
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
                 {/* Add Items Section */}
                 <div>
@@ -1080,15 +1190,47 @@ export default function SalesEntry() {
                           </div>
                         </div>
 
-                        {/* Terms and Conditions */}
-                        {business?.terms_conditions && (
-                          <div className="mt-6 pt-4 border-t border-gray-200">
-                            <h4 className="font-medium text-gray-700 mb-2">Terms & Conditions:</h4>
-                            <p className="text-sm text-gray-600 whitespace-pre-line">
-                              {business.terms_conditions}
-                            </p>
+                        <div className="mt-6 pt-4 border-t border-gray-200 space-y-4">
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="font-medium text-gray-700">Invoice Terms & Conditions</h4>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setFormData(prev => ({ ...prev, invoice_terms: SOFTWARE_DEFAULT_TERMS }))}
+                              >
+                                Use Software Terms
+                              </Button>
+                            </div>
+                            <Textarea
+                              value={formData.invoice_terms}
+                              onChange={(e) => setFormData(prev => ({ ...prev, invoice_terms: e.target.value }))}
+                              rows={5}
+                              placeholder="Enter terms and conditions"
+                            />
                           </div>
-                        )}
+
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="font-medium text-gray-700">Invoice Footer</h4>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setFormData(prev => ({ ...prev, invoice_footer: DEFAULT_INVOICE_FOOTER }))}
+                              >
+                                Use Default Footer
+                              </Button>
+                            </div>
+                            <Textarea
+                              value={formData.invoice_footer}
+                              onChange={(e) => setFormData(prev => ({ ...prev, invoice_footer: e.target.value }))}
+                              rows={3}
+                              placeholder="Enter invoice footer or support information"
+                            />
+                          </div>
+                        </div>
                       </CardContent>
                     </Card>
                   </div>

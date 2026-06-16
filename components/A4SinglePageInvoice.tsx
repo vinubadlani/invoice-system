@@ -44,6 +44,7 @@ interface InvoiceItem {
 interface Invoice {
   invoice_number: string;
   invoice_date: string;
+  due_date?: string;
   business: Business;
   party: Party;
   items: InvoiceItem[];
@@ -58,6 +59,15 @@ interface Invoice {
   payment_received: number;
   balance_due: number;
   notes?: string;
+  invoice_terms?: string;
+  invoice_footer?: string;
+  invoice_payment_details?: {
+    bank_name?: string;
+    account_number?: string;
+    ifsc_code?: string;
+    upi_id?: string;
+    qr_code_url?: string;
+  };
 }
 
 interface A4SinglePageInvoiceProps {
@@ -107,12 +117,26 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
   const p = invoice.party;
 
   const defaultTerms = [
-    "Goods once sold will not be taken back or exchanged",
-    `All disputes are subject to ${b.city || b.state} jurisdiction only`,
+    "Subscription fees are non-refundable.",
+    "Support available during subscription period.",
+    "License is non-transferable.",
+    "All disputes subject to Indore jurisdiction.",
   ];
-  const termsLines = invoice.notes
-    ? invoice.notes.split("\n").filter(Boolean)
+  const termsSource = invoice.invoice_terms?.trim() || invoice.notes?.trim()
+  const termsLines = termsSource
+    ? termsSource
+        .split("\n")
+        .map((line) => line.replace(/^\s*\d+[.)-]?\s*/, "").trim())
+        .filter(Boolean)
     : defaultTerms;
+
+  const paymentDetails = {
+    bank_name: invoice.invoice_payment_details?.bank_name || b.bank_name || '',
+    account_number: invoice.invoice_payment_details?.account_number || b.account_no || '',
+    ifsc_code: invoice.invoice_payment_details?.ifsc_code || b.ifsc_code || '',
+    upi_id: invoice.invoice_payment_details?.upi_id || '',
+    qr_code_url: invoice.invoice_payment_details?.qr_code_url || '',
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 print:bg-white">
@@ -175,6 +199,14 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
                     {new Date(invoice.invoice_date).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })}
                   </span>
                 </div>
+                {invoice.due_date && (
+                  <div className="flex justify-between gap-2">
+                    <span className="text-blue-600 font-medium whitespace-nowrap">Due Date</span>
+                    <span className="font-bold text-gray-900 text-right">
+                      {new Date(invoice.due_date).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -265,15 +297,26 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
 
             {/* Left: bank details + terms */}
             <div className="flex-1 border-r border-gray-400 flex flex-col">
-              {(b.bank_name || b.account_no || b.ifsc_code) && (
+              {(paymentDetails.bank_name || paymentDetails.account_number || paymentDetails.ifsc_code || paymentDetails.upi_id || paymentDetails.qr_code_url || b.branch) && (
                 <div className="p-3 border-b border-gray-300">
                   <div className="font-bold text-gray-900 mb-1.5 uppercase text-[10px] tracking-wider">BANK DETAILS</div>
                   <div className="space-y-0.5 text-[10px]">
-                    {b.bank_name  && <div><span className="font-semibold">Name :</span> {b.bank_name}</div>}
-                    {b.ifsc_code  && <div><span className="font-semibold">IFSC Code :</span> {b.ifsc_code}</div>}
-                    {b.account_no && <div><span className="font-semibold">Account No :</span> {b.account_no}</div>}
+                    {paymentDetails.bank_name  && <div><span className="font-semibold">Bank Name :</span> {paymentDetails.bank_name}</div>}
+                    {paymentDetails.account_number && <div><span className="font-semibold">Account No :</span> {paymentDetails.account_number}</div>}
+                    {paymentDetails.ifsc_code  && <div><span className="font-semibold">IFSC Code :</span> {paymentDetails.ifsc_code}</div>}
+                    {paymentDetails.upi_id  && <div><span className="font-semibold">UPI ID :</span> {paymentDetails.upi_id}</div>}
                     {b.branch     && <div><span className="font-semibold">Bank :</span> {b.branch}</div>}
                   </div>
+                  {paymentDetails.qr_code_url && (
+                    <div className="mt-2">
+                      <div className="font-semibold text-[10px] mb-1">QR Code</div>
+                      <img
+                        src={paymentDetails.qr_code_url}
+                        alt="Payment QR Code"
+                        className="w-20 h-20 object-contain border border-gray-300 rounded"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
               <div className="p-3 flex-1">
@@ -349,6 +392,13 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
               </div>
             </div>
           </div>
+
+          {invoice.invoice_footer && (
+            <div className="px-4 py-3 border-t border-gray-300 bg-gray-50 text-[10px] text-gray-700">
+              <div className="font-semibold text-gray-900 mb-1">Invoice Notes</div>
+              <div className="whitespace-pre-line">{invoice.invoice_footer}</div>
+            </div>
+          )}
 
         </div>
       </div>

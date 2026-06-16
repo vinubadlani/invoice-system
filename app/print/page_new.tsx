@@ -27,6 +27,7 @@ interface InvoiceData {
   id: string
   invoice_no: string
   date: string
+  due_date?: string
   party_name: string
   address: string
   state: string
@@ -38,6 +39,15 @@ interface InvoiceData {
   payment_received: number
   balance_due: number
   status?: string
+  invoice_terms?: string
+  invoice_footer?: string
+  invoice_payment_details?: {
+    bank_name?: string
+    account_number?: string
+    ifsc_code?: string
+    upi_id?: string
+    qr_code_url?: string
+  }
 }
 
 export default function PrintPage() {
@@ -67,13 +77,20 @@ export default function PrintPage() {
         }
 
         // Fetch invoice data
-        const invoiceData = await salesQueries.getSalesData(invoiceId)
-        if (invoiceData && invoiceData.length > 0) {
-          const firstInvoice = invoiceData[0] as any
+        const invoiceData = await salesQueries.getInvoiceById(invoiceId)
+        if (invoiceData) {
+          const rawItems = Array.isArray(invoiceData.items) ? invoiceData.items : []
+          const paymentMeta = rawItems.find((i: any) => i.__meta__ && i.invoice_payment_details)
+          const termsMeta = rawItems.find((i: any) => i.__meta__ && typeof i.invoice_terms === 'string')
+          const footerMeta = rawItems.find((i: any) => i.__meta__ && typeof i.invoice_footer === 'string')
           const transformedInvoice = {
-            ...firstInvoice,
-            id: String(firstInvoice.id)
-          } as unknown as InvoiceData
+            ...invoiceData,
+            id: String(invoiceData.id),
+            due_date: invoiceData.due_date || undefined,
+            invoice_terms: termsMeta?.invoice_terms,
+            invoice_footer: footerMeta?.invoice_footer,
+            invoice_payment_details: paymentMeta?.invoice_payment_details,
+          } as InvoiceData
           setInvoice(transformedInvoice)
         } else {
           setError('Invoice not found')
