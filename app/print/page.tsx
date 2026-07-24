@@ -73,6 +73,7 @@ type PrintInvoice = {
   other_charges?: number
   other_charges_label?: string
   is_gst?: boolean
+  gst_type?: "cgst_sgst" | "igst"
   total_tax: number
   net_total: number
   payment_received: number
@@ -176,7 +177,7 @@ export default function PrintPage() {
         // Extract other_charges metadata stored inside items JSONB
         const rawItems = Array.isArray(invoiceData.items) ? invoiceData.items : []
         const metaOtherCharges = rawItems.find((i: any) => i.__meta__ && i.other_charges)
-        const metaFlags = rawItems.find((i: any) => i.__meta__ && 'is_gst' in i)
+        const metaFlags = rawItems.find((i: any) => i.__meta__ && ('is_gst' in i || 'gst_type' in i))
         const paymentMeta = rawItems.find((i: any) => i.__meta__ && i.invoice_payment_details)
         const termsMeta = rawItems.find((i: any) => i.__meta__ && typeof i.invoice_terms === 'string')
         const footerMeta = rawItems.find((i: any) => i.__meta__ && typeof i.invoice_footer === 'string')
@@ -220,6 +221,7 @@ export default function PrintPage() {
           other_charges: otherCharges,
           other_charges_label: otherChargesLabel,
           is_gst: isGst,
+          gst_type: metaFlags?.gst_type === 'igst' ? 'igst' : 'cgst_sgst',
           total_tax: Number(invoiceData.total_tax ?? calculatedTotals.totalTax),
           net_total: Number(invoiceData.net_total ?? calculatedTotals.netTotal),
           payment_received: Number(invoiceData.payment_received ?? 0),

@@ -54,6 +54,7 @@ interface Invoice {
   other_charges?: number;
   other_charges_label?: string;
   is_gst?: boolean;
+  gst_type?: "cgst_sgst" | "igst";
   total_tax: number;
   net_total: number;
   payment_received: number;
@@ -113,6 +114,7 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
   const otherCharges = invoice.other_charges ?? 0;
   const otherChargesLabel = invoice.other_charges_label || "Other Charges";
   const isGst = invoice.is_gst !== false;
+  const gstType = invoice.gst_type === "igst" ? "igst" : "cgst_sgst";
   const b = invoice.business;
   const p = invoice.party;
 
@@ -138,6 +140,18 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
     qr_code_url: invoice.invoice_payment_details?.qr_code_url || '',
   };
 
+  const handlePrint = () => {
+    const previousTitle = document.title;
+    const printTitle = invoice.invoice_number || 'Invoice';
+    document.title = printTitle;
+
+    window.print();
+
+    window.setTimeout(() => {
+      document.title = previousTitle;
+    }, 300);
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 print:bg-white">
       {/* Toolbar — hidden in print */}
@@ -150,7 +164,7 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
           )}
           <span className="text-base font-semibold text-gray-800">Invoice Preview</span>
         </div>
-        <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => window.print()}>
+        <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={handlePrint}>
           <Printer className="h-4 w-4 mr-2" /> Print / Save PDF
         </Button>
       </div>
@@ -338,14 +352,23 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
                 </div>
                 {isGst && (
                   <>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">CGST @{gstRate / 2}%</span>
-                      <span className="font-semibold tabular-nums">₹ {fmt(halfTax)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">SGST @{gstRate / 2}%</span>
-                      <span className="font-semibold tabular-nums">₹ {fmt(halfTax)}</span>
-                    </div>
+                    {gstType === "igst" ? (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">IGST @{gstRate}%</span>
+                        <span className="font-semibold tabular-nums">₹ {fmt(totalTax)}</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">CGST @{gstRate / 2}%</span>
+                          <span className="font-semibold tabular-nums">₹ {fmt(halfTax)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">SGST @{gstRate / 2}%</span>
+                          <span className="font-semibold tabular-nums">₹ {fmt(halfTax)}</span>
+                        </div>
+                      </>
+                    )}
                   </>
                 )}
                 {discount > 0 && (

@@ -144,6 +144,7 @@ export default function SalesEntry() {
   const [itemSearchValue, setItemSearchValue] = useState("")
   const [itemDraftInputs, setItemDraftInputs] = useState<Record<string, { rate: string; qty: string }>>({})
   const [isGst, setIsGst] = useState(true)
+  const [gstType, setGstType] = useState<"cgst_sgst" | "igst">("cgst_sgst")
   const { toast } = useToast()
   const { selectedBusiness: contextBusiness } = useBusiness()
 
@@ -392,6 +393,7 @@ export default function SalesEntry() {
     setItemSearchValue("")
     setInvoiceNoError("")
     setIsGst(true)
+    setGstType("cgst_sgst")
   }, [generateInvoiceNo])
 
   // Optimized form submission
@@ -451,7 +453,7 @@ export default function SalesEntry() {
             other_charges: totals.otherCharges,
             other_charges_label: formData.other_charges_label || 'Other Charges',
           }] : []),
-          { __meta__: true, is_gst: isGst },
+          { __meta__: true, is_gst: isGst, gst_type: isGst ? gstType : "cgst_sgst" },
           {
             __meta__: true,
             invoice_payment_details: {
@@ -552,7 +554,7 @@ export default function SalesEntry() {
   const handleEdit = useCallback((invoice: Invoice) => {
     // Extract other_charges meta from items if present
     const metaItem = invoice.items?.find((i: any) => i.__meta__ && i.other_charges) as any
-    const metaFlags = invoice.items?.find((i: any) => i.__meta__ && 'is_gst' in i) as any
+    const metaFlags = invoice.items?.find((i: any) => i.__meta__ && ('is_gst' in i || 'gst_type' in i)) as any
     const paymentMeta = invoice.items?.find((i: any) => i.__meta__ && i.invoice_payment_details) as any
     const termsMeta = invoice.items?.find((i: any) => i.__meta__ && typeof i.invoice_terms === 'string') as any
     const footerMeta = invoice.items?.find((i: any) => i.__meta__ && typeof i.invoice_footer === 'string') as any
@@ -560,6 +562,7 @@ export default function SalesEntry() {
     const storedOtherChargesLabel = metaItem?.other_charges_label ?? invoice.other_charges_label ?? ''
     const cleanItems = invoice.items?.filter((i: any) => !i.__meta__) ?? []
     setIsGst(metaFlags?.is_gst !== false)
+    setGstType(metaFlags?.gst_type === "igst" ? "igst" : "cgst_sgst")
     setFormData({
       invoice_no: invoice.invoice_no,
       date: invoice.date,
@@ -670,11 +673,12 @@ export default function SalesEntry() {
                   <FileText className="h-5 w-5" />
                   {editingInvoice ? "Edit Sales Invoice" : "Create New Invoice"}
                 </span>
-                <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                <div className="flex flex-wrap items-center gap-1 bg-gray-100 rounded-lg p-1">
                   <button
                     type="button"
                     onClick={() => {
                       setIsGst(true)
+                      setGstType("cgst_sgst")
                       setInvoiceItems(prev => prev.map(item => ({
                         ...item,
                         tax_amount: (item.rate * item.qty * item.gst_percent) / 100,
@@ -682,15 +686,33 @@ export default function SalesEntry() {
                       })))
                     }}
                     className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                      isGst ? 'bg-white text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                      isGst && gstType === "cgst_sgst" ? 'bg-white text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    With GST
+                    CGST/SGST
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsGst(true)
+                      setGstType("igst")
+                      setInvoiceItems(prev => prev.map(item => ({
+                        ...item,
+                        tax_amount: (item.rate * item.qty * item.gst_percent) / 100,
+                        total: (item.rate * item.qty) + (item.rate * item.qty * item.gst_percent) / 100,
+                      })))
+                    }}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      isGst && gstType === "igst" ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    IGST
                   </button>
                   <button
                     type="button"
                     onClick={() => {
                       setIsGst(false)
+                      setGstType("cgst_sgst")
                       setInvoiceItems(prev => prev.map(item => ({
                         ...item,
                         tax_amount: 0,
