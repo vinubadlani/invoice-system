@@ -80,6 +80,16 @@ export default function BankAccountsPage() {
   }, [])
 
   const loadData = async (businessId: string) => {
+    if (!businessId) {
+      toast({
+        title: "Error",
+        description: "Unable to load bank details: business is not selected.",
+        variant: "destructive",
+      })
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       
@@ -147,6 +157,15 @@ export default function BankAccountsPage() {
 
   const handleAddAccount = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!businessId) {
+      toast({
+        title: "Error",
+        description: "Unable to save bank details: business is not selected.",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       // Verify user authentication and business access
       const user = await getCurrentUser()

@@ -73,7 +73,7 @@ type PrintInvoice = {
   other_charges?: number
   other_charges_label?: string
   is_gst?: boolean
-  gst_type?: "cgst_sgst" | "igst"
+  gst_type?: "cgst_sgst" | "cgst_igst" | "igst"
   total_tax: number
   net_total: number
   payment_received: number
@@ -221,7 +221,7 @@ export default function PrintPage() {
           other_charges: otherCharges,
           other_charges_label: otherChargesLabel,
           is_gst: isGst,
-          gst_type: metaFlags?.gst_type === 'igst' ? 'igst' : 'cgst_sgst',
+          gst_type: metaFlags?.gst_type === 'cgst_igst' ? 'cgst_igst' : (metaFlags?.gst_type === 'igst' ? 'igst' : 'cgst_sgst'),
           total_tax: Number(invoiceData.total_tax ?? calculatedTotals.totalTax),
           net_total: Number(invoiceData.net_total ?? calculatedTotals.netTotal),
           payment_received: Number(invoiceData.payment_received ?? 0),

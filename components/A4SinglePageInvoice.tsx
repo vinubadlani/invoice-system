@@ -54,7 +54,7 @@ interface Invoice {
   other_charges?: number;
   other_charges_label?: string;
   is_gst?: boolean;
-  gst_type?: "cgst_sgst" | "igst";
+  gst_type?: "cgst_sgst" | "cgst_igst" | "igst";
   total_tax: number;
   net_total: number;
   payment_received: number;
@@ -107,14 +107,14 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
   const subtotal = invoice.subtotal || items.reduce((s, i) => s + i.quantity * i.rate, 0);
   const totalTax = invoice.total_tax || items.reduce((s, i) => s + i.gst_amount, 0);
   const netTotal = invoice.net_total || subtotal + totalTax;
-  const halfTax = totalTax / 2;
+  const splitTax = totalTax / 2;
   const gstRate = items[0]?.gst_percent ?? 0;
   const roundOff = invoice.round_off ?? 0;
   const discount = invoice.discount ?? 0;
   const otherCharges = invoice.other_charges ?? 0;
   const otherChargesLabel = invoice.other_charges_label || "Other Charges";
   const isGst = invoice.is_gst !== false;
-  const gstType = invoice.gst_type === "igst" ? "igst" : "cgst_sgst";
+  const gstType = invoice.gst_type === "cgst_igst" || invoice.gst_type === "igst" ? "cgst_igst" : "cgst_sgst";
   const b = invoice.business;
   const p = invoice.party;
 
@@ -352,20 +352,26 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
                 </div>
                 {isGst && (
                   <>
-                    {gstType === "igst" ? (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">IGST @{gstRate}%</span>
-                        <span className="font-semibold tabular-nums">₹ {fmt(totalTax)}</span>
-                      </div>
+                    {gstType === "cgst_igst" ? (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">CGST @{gstRate / 2}%</span>
+                          <span className="font-semibold tabular-nums">₹ {fmt(splitTax)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">IGST @{gstRate / 2}%</span>
+                          <span className="font-semibold tabular-nums">₹ {fmt(splitTax)}</span>
+                        </div>
+                      </>
                     ) : (
                       <>
                         <div className="flex justify-between">
                           <span className="text-gray-600">CGST @{gstRate / 2}%</span>
-                          <span className="font-semibold tabular-nums">₹ {fmt(halfTax)}</span>
+                          <span className="font-semibold tabular-nums">₹ {fmt(splitTax)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-600">SGST @{gstRate / 2}%</span>
-                          <span className="font-semibold tabular-nums">₹ {fmt(halfTax)}</span>
+                          <span className="font-semibold tabular-nums">₹ {fmt(splitTax)}</span>
                         </div>
                       </>
                     )}
@@ -407,8 +413,8 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
               </div>
 
               {/* Signature */}
-              <div className="p-3 flex flex-col items-end justify-end min-h-[72px]">
-                <div className="h-9 mb-1" />
+              <div className="p-3 flex flex-col items-end justify-end min-h-[48px]">
+                <div className="h-6 mb-1" />
                 <div className="border-t border-gray-500 pt-1 text-[10px] text-gray-600 text-center w-full">
                   Authorised Signature for {b.name}
                 </div>
@@ -435,18 +441,21 @@ export default function A4SinglePageInvoice({ invoice, onBack }: A4SinglePageInv
           .invoice-wrap { margin: 0 !important; padding: 0 !important; }
           .invoice-page {
             width: 210mm !important;
-            min-height: 297mm !important;
             max-width: 210mm !important;
+            min-height: auto !important;
+            height: auto !important;
+            overflow: hidden !important;
             margin: 0 auto !important;
             box-shadow: none !important;
             font-size: 11px !important;
             page-break-inside: avoid;
           }
-          @page { size: A4 portrait; margin: 8mm; }
+          @page { size: A4 portrait; margin: 4mm; }
         }
         .invoice-wrap { max-width: 210mm; }
         .invoice-page {
-          min-height: 297mm;
+          min-height: auto;
+          height: auto;
           box-shadow: 0 4px 24px rgba(0,0,0,0.10);
         }
       `}</style>

@@ -74,6 +74,20 @@ interface InvoiceItem {
   total: number
 }
 
+interface BankAccount {
+  id: string
+  business_id: string
+  bank_name: string
+  account_number: string
+  account_type?: string
+  ifsc_code: string
+  branch_name?: string
+  account_holder_name?: string
+  opening_balance?: number
+  current_balance?: number
+  created_at?: string
+}
+
 interface Invoice {
   id: string
   invoice_no: string
@@ -144,7 +158,20 @@ export default function SalesEntry() {
   const [itemSearchValue, setItemSearchValue] = useState("")
   const [itemDraftInputs, setItemDraftInputs] = useState<Record<string, { rate: string; qty: string }>>({})
   const [isGst, setIsGst] = useState(true)
-  const [gstType, setGstType] = useState<"cgst_sgst" | "igst">("cgst_sgst")
+  const [gstType, setGstType] = useState<"cgst_sgst" | "cgst_igst">("cgst_sgst")
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState("")
+  const [editingBankAccountId, setEditingBankAccountId] = useState<string | null>(null)
+  const [isBankAccountFormOpen, setIsBankAccountFormOpen] = useState(false)
+  const [bankAccountFormData, setBankAccountFormData] = useState({
+    bank_name: "",
+    account_number: "",
+    account_type: "Savings",
+    ifsc_code: "",
+    branch_name: "",
+    account_holder_name: "",
+    opening_balance: 0,
+  })
   const { toast } = useToast()
   const { selectedBusiness: contextBusiness } = useBusiness()
 
@@ -216,6 +243,30 @@ export default function SalesEntry() {
     }
   }, [])
 
+  const loadBankAccounts = useCallback(async (businessId: string) => {
+    const client = getSupabaseClient()
+    if (!client) return
+
+    try {
+      const { data, error } = await client
+        .from("bank_accounts")
+        .select("*")
+        .eq("business_id", businessId)
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.warn("Bank accounts unavailable, continuing without saved bank accounts:", error)
+        setBankAccounts([])
+        return
+      }
+
+      setBankAccounts((data as BankAccount[]) || [])
+    } catch (error) {
+      console.warn("Bank accounts unavailable, continuing without saved bank accounts:", error)
+      setBankAccounts([])
+    }
+  }, [])
+
   const fetchData = useCallback(async (businessId: string) => {
     try {
       setLoading(true)
@@ -238,7 +289,7 @@ export default function SalesEntry() {
           .eq("business_id", businessId)
           .eq("type", "sales")
           .order("created_at", { ascending: false })
-          .limit(25) // Reduced from 50 for faster loading
+          .limit(25)
       ])
 
       if (invoicesResult.error) throw invoicesResult.error
@@ -247,6 +298,7 @@ export default function SalesEntry() {
       setItems(itemsData)
       setBusiness(businessData)
       setInvoices((invoicesResult.data as unknown as Invoice[]) || [])
+      await loadBankAccounts(businessId)
       
       if (!editingInvoice) {
         setFormData(prev => ({ ...prev, invoice_no: generateInvoiceNo() }))
@@ -261,7 +313,107 @@ export default function SalesEntry() {
     } finally {
       setLoading(false)
     }
-  }, [fetchParties, fetchItems, fetchBusiness, clearAllCache, generateInvoiceNo, editingInvoice, toast])
+  }, [fetchParties, fetchItems, fetchBusiness, clearAllCache, generateInvoiceNo, editingInvoice, loadBankAccounts, toast])
+
+  const handleBankAccountSelection = useCallback((accountId: string) => {
+    setSelectedBankAccountId(accountId)
+    const selectedAccount = bankAccounts.find((account) => account.id === accountId)
+    if (selectedAccount) {
+      setFormData(prev => ({
+        ...prev,
+        payment_bank_name: selectedAccount.bank_name,
+        payment_account_number: selectedAccount.account_number,
+        payment_ifsc_code: selectedAccount.ifsc_code,
+      }))
+    }
+  }, [bankAccounts])
+
+  const handleSaveBankAccount = useCallback(async (e?: React.FormEvent) => {
+    e?.preventDefault()
+    if (!businessId) {
+      toast({ title: "Error", description: "Please select a business first.", variant: "destructive" })
+      return
+    }
+
+    const client = getSupabaseClient()
+    if (!client) {
+      toast({ title: "Error", description: "Service temporarily unavailable.", variant: "destructive" })
+      return
+    }
+
+    const payload = {
+      business_id: businessId,
+      bank_name: bankAccountFormData.bank_name.trim(),
+      account_number: bankAccountFormData.account_number.trim(),
+      account_type: bankAccountFormData.account_type,
+      ifsc_code: bankAccountFormData.ifsc_code.trim(),
+      branch_name: bankAccountFormData.branch_name.trim() || "Main Branch",
+      account_holder_name: bankAccountFormData.account_holder_name.trim() || "Account Holder",
+      opening_balance: Number(bankAccountFormData.opening_balance) || 0,
+      current_balance: Number(bankAccountFormData.opening_balance) || 0,
+      created_at: new Date().toISOString(),
+    }
+
+    if (!payload.bank_name || !payload.account_number || !payload.ifsc_code) {
+      toast({ title: "Error", description: "Please fill bank name, account number, and IFSC code.", variant: "destructive" })
+      return
+    }
+
+    try {
+      let result
+      if (editingBankAccountId) {
+        result = await client.from("bank_accounts").update(payload).eq("id", editingBankAccountId).select().single()
+      } else {
+        result = await client.from("bank_accounts").insert([payload]).select().single()
+      }
+
+      if (result.error) {
+        console.warn("Bank account save returned an error, but invoice form will continue:", result.error)
+        toast({ title: "Info", description: "Bank account could not be saved right now, but you can still use the entered details on this invoice.", variant: "default" })
+        setFormData(prev => ({
+          ...prev,
+          payment_bank_name: payload.bank_name,
+          payment_account_number: payload.account_number,
+          payment_ifsc_code: payload.ifsc_code,
+        }))
+        setIsBankAccountFormOpen(false)
+        setEditingBankAccountId(null)
+        setBankAccountFormData({
+          bank_name: "",
+          account_number: "",
+          account_type: "Savings",
+          ifsc_code: "",
+          branch_name: "",
+          account_holder_name: "",
+          opening_balance: 0,
+        })
+        return
+      }
+
+      await loadBankAccounts(businessId)
+      setSelectedBankAccountId(result.data?.id || "")
+      setFormData(prev => ({
+        ...prev,
+        payment_bank_name: result.data?.bank_name || payload.bank_name,
+        payment_account_number: result.data?.account_number || payload.account_number,
+        payment_ifsc_code: result.data?.ifsc_code || payload.ifsc_code,
+      }))
+      setEditingBankAccountId(null)
+      setIsBankAccountFormOpen(false)
+      setBankAccountFormData({
+        bank_name: "",
+        account_number: "",
+        account_type: "Savings",
+        ifsc_code: "",
+        branch_name: "",
+        account_holder_name: "",
+        opening_balance: 0,
+      })
+      toast({ title: "Success", description: editingBankAccountId ? "Bank account updated successfully." : "Bank account saved successfully." })
+    } catch (error: any) {
+      toast({ title: "Error", description: error?.message || "Failed to save bank account.", variant: "destructive" })
+    }
+  }, [bankAccountFormData, businessId, editingBankAccountId, loadBankAccounts, toast])
 
   // Optimized filtered items with comprehensive search
   const filteredItems = useMemo(() => {
@@ -394,6 +546,18 @@ export default function SalesEntry() {
     setInvoiceNoError("")
     setIsGst(true)
     setGstType("cgst_sgst")
+    setSelectedBankAccountId("")
+    setEditingBankAccountId(null)
+    setIsBankAccountFormOpen(false)
+    setBankAccountFormData({
+      bank_name: "",
+      account_number: "",
+      account_type: "Savings",
+      ifsc_code: "",
+      branch_name: "",
+      account_holder_name: "",
+      opening_balance: 0,
+    })
   }, [generateInvoiceNo])
 
   // Optimized form submission
@@ -462,7 +626,8 @@ export default function SalesEntry() {
               ifsc_code: formData.payment_ifsc_code,
               upi_id: formData.payment_upi_id,
               qr_code_url: formData.payment_qr_code_url,
-            }
+            },
+            selected_bank_account_id: selectedBankAccountId || null,
           },
           { __meta__: true, invoice_terms: formData.invoice_terms },
           { __meta__: true, invoice_footer: formData.invoice_footer },
@@ -562,7 +727,8 @@ export default function SalesEntry() {
     const storedOtherChargesLabel = metaItem?.other_charges_label ?? invoice.other_charges_label ?? ''
     const cleanItems = invoice.items?.filter((i: any) => !i.__meta__) ?? []
     setIsGst(metaFlags?.is_gst !== false)
-    setGstType(metaFlags?.gst_type === "igst" ? "igst" : "cgst_sgst")
+    setGstType(metaFlags?.gst_type === "cgst_igst" || metaFlags?.gst_type === "igst" ? "cgst_igst" : "cgst_sgst")
+    setSelectedBankAccountId(paymentMeta?.selected_bank_account_id || '')
     setFormData({
       invoice_no: invoice.invoice_no,
       date: invoice.date,
@@ -689,13 +855,13 @@ export default function SalesEntry() {
                       isGst && gstType === "cgst_sgst" ? 'bg-white text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    CGST/SGST
+                    CGST + SGST
                   </button>
                   <button
                     type="button"
                     onClick={() => {
                       setIsGst(true)
-                      setGstType("igst")
+                      setGstType("cgst_igst")
                       setInvoiceItems(prev => prev.map(item => ({
                         ...item,
                         tax_amount: (item.rate * item.qty * item.gst_percent) / 100,
@@ -703,10 +869,10 @@ export default function SalesEntry() {
                       })))
                     }}
                     className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                      isGst && gstType === "igst" ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                      isGst && gstType === "cgst_igst" ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    IGST
+                    CGST + IGST
                   </button>
                   <button
                     type="button"
@@ -835,8 +1001,159 @@ export default function SalesEntry() {
 
                 {/* Payment Details */}
                 <Card className="bg-gray-50 border-dashed">
-                  <CardContent className="p-4">
+                  <CardContent className="p-4 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-800">Bank Details for Invoice</h3>
+                        <p className="text-xs text-gray-600">Save once, then reuse it on future invoices.</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button type="button" variant="outline" size="sm" onClick={() => {
+                          setEditingBankAccountId(null)
+                          setBankAccountFormData({
+                            bank_name: formData.payment_bank_name,
+                            account_number: formData.payment_account_number,
+                            account_type: "Savings",
+                            ifsc_code: formData.payment_ifsc_code,
+                            branch_name: "",
+                            account_holder_name: "",
+                            opening_balance: 0,
+                          })
+                          setIsBankAccountFormOpen(true)
+                        }}>
+                          Save bank details
+                        </Button>
+                        <Button type="button" variant="outline" size="sm" onClick={() => {
+                          if (!selectedBankAccountId) {
+                            toast({ title: "Info", description: "Select a saved bank account first.", variant: "default" })
+                            return
+                          }
+                          const selectedAccount = bankAccounts.find((account) => account.id === selectedBankAccountId)
+                          if (selectedAccount) {
+                            setEditingBankAccountId(selectedAccount.id)
+                            setBankAccountFormData({
+                              bank_name: selectedAccount.bank_name,
+                              account_number: selectedAccount.account_number,
+                              account_type: selectedAccount.account_type || "Savings",
+                              ifsc_code: selectedAccount.ifsc_code,
+                              branch_name: selectedAccount.branch_name || "",
+                              account_holder_name: selectedAccount.account_holder_name || "",
+                              opening_balance: Number(selectedAccount.opening_balance) || 0,
+                            })
+                            setIsBankAccountFormOpen(true)
+                          }
+                        }}>
+                          Edit selected
+                        </Button>
+                      </div>
+                    </div>
+
+                    {isBankAccountFormOpen && (
+                      <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-semibold">{editingBankAccountId ? "Edit bank account" : "Save bank account"}</h4>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => {
+                            setIsBankAccountFormOpen(false)
+                            setEditingBankAccountId(null)
+                          }}>
+                            Close
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-sm font-medium">Bank Name</Label>
+                            <Input
+                              value={bankAccountFormData.bank_name}
+                              onChange={(e) => setBankAccountFormData(prev => ({ ...prev, bank_name: e.target.value }))}
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium">Account Number</Label>
+                            <Input
+                              value={bankAccountFormData.account_number}
+                              onChange={(e) => setBankAccountFormData(prev => ({ ...prev, account_number: e.target.value }))}
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium">Account Type</Label>
+                            <Select value={bankAccountFormData.account_type} onValueChange={(value) => setBankAccountFormData(prev => ({ ...prev, account_type: value }))}>
+                              <SelectTrigger className="mt-1">
+                                <SelectValue placeholder="Select type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Savings">Savings</SelectItem>
+                                <SelectItem value="Current">Current</SelectItem>
+                                <SelectItem value="Fixed Deposit">Fixed Deposit</SelectItem>
+                                <SelectItem value="Credit Card">Credit Card</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium">IFSC Code</Label>
+                            <Input
+                              value={bankAccountFormData.ifsc_code}
+                              onChange={(e) => setBankAccountFormData(prev => ({ ...prev, ifsc_code: e.target.value }))}
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium">Branch Name</Label>
+                            <Input
+                              value={bankAccountFormData.branch_name}
+                              onChange={(e) => setBankAccountFormData(prev => ({ ...prev, branch_name: e.target.value }))}
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium">Account Holder</Label>
+                            <Input
+                              value={bankAccountFormData.account_holder_name}
+                              onChange={(e) => setBankAccountFormData(prev => ({ ...prev, account_holder_name: e.target.value }))}
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium">Opening Balance</Label>
+                            <Input
+                              type="number"
+                              value={bankAccountFormData.opening_balance}
+                              onChange={(e) => setBankAccountFormData(prev => ({ ...prev, opening_balance: Number(e.target.value) || 0 }))}
+                              className="mt-1"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button type="button" onClick={() => handleSaveBankAccount()}>
+                            {editingBankAccountId ? "Update account" : "Save account"}
+                          </Button>
+                          <Button type="button" variant="outline" onClick={() => {
+                            setIsBankAccountFormOpen(false)
+                            setEditingBankAccountId(null)
+                          }}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <Label className="text-sm font-medium">Select saved bank account</Label>
+                        <Select value={selectedBankAccountId} onValueChange={handleBankAccountSelection}>
+                          <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="Choose a saved account" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {bankAccounts.map((account) => (
+                              <SelectItem key={account.id} value={account.id}>
+                                {account.bank_name} - {account.account_number} ({account.ifsc_code})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                       <div>
                         <Label htmlFor="payment_bank_name" className="text-sm font-medium">Bank Name</Label>
                         <Input

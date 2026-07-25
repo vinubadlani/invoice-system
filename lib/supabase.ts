@@ -402,8 +402,12 @@ export async function queryBuilder(
         rows = await rpcExec<any[]>('rpc_get_expenses', { p_business_id: filters.business_id }) || []
         break
       case 'bank_accounts':
-        if (!filters.business_id) throw new Error('business_id is required for bank_accounts query')
-        rows = await rpcExec<any[]>('rpc_get_bank_accounts', { p_business_id: filters.business_id }) || []
+        if (!filters.business_id) {
+          console.warn('Skipping bank_accounts query because business_id is missing')
+          rows = []
+        } else {
+          rows = await rpcExec<any[]>('rpc_get_bank_accounts', { p_business_id: filters.business_id }) || []
+        }
         break
       case 'bank_transactions':
         if (!filters.business_id) throw new Error('business_id is required for bank_transactions query')
