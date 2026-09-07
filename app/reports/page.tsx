@@ -103,8 +103,8 @@ export default function ReportsPage() {
 
       // Load all data in parallel
       const [salesInvoices, purchaseInvoices, payments] = await Promise.all([
-        fetchInvoices(businessId, 'sales', 1000, user?.id),
-        fetchInvoices(businessId, 'purchase', 1000, user?.id),
+        fetchInvoices(businessId, 'sales', undefined, user?.id),
+        fetchInvoices(businessId, 'purchase', undefined, user?.id),
         queryBuilder('payments', '*', { business_id: businessId }, { orderBy: 'date', ascending: false })
       ])
 

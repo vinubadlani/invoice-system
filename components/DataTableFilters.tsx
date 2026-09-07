@@ -50,9 +50,9 @@ const getCurrentFinancialYear = () => {
 
 // Generate financial year options
 const getFinancialYearOptions = () => {
-  const options = []
+  const options = [{ value: 'all', label: 'All Years' }]
   const currentYear = new Date().getFullYear()
-  
+
   for (let i = -5; i <= 2; i++) {
     const startYear = currentYear + i
     const endYear = startYear + 1
@@ -61,7 +61,7 @@ const getFinancialYearOptions = () => {
       label: `FY ${startYear}-${endYear.toString().slice(2)}`
     })
   }
-  
+
   return options
 }
 
@@ -75,7 +75,9 @@ export default function DataTableFilters({
 }: DataTableFiltersProps) {
   const [filterValues, setFilterValues] = useState<FilterValues>({})
   const [activeFilters, setActiveFilters] = useState<string[]>([])
-  const [currentFinancialYear, setCurrentFinancialYear] = useState(financialYear || getCurrentFinancialYear())
+  // Default to "all" rather than the current FY so a page's data isn't silently
+  // scoped down to the current financial year before the user has chosen a filter.
+  const [currentFinancialYear, setCurrentFinancialYear] = useState(financialYear || 'all')
 
   useEffect(() => {
     if (showFinancialYear && onFinancialYearChange) {

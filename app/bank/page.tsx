@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { getCurrentUser, queryBuilder, insertData, updateData, verifyBusinessOwnership } from "@/lib/supabase"
-import { Plus, Save, X, CreditCard, TrendingUp, TrendingDown, Building2, Trash2, Edit } from "lucide-react"
+import { Plus, Save, X, CreditCard, TrendingUp, TrendingDown, Building2, Trash2, Edit, Search } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -48,6 +48,9 @@ export default function BankAccountsPage() {
   const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false)
   const [selectedAccount, setSelectedAccount] = useState<string>("")
   const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [typeFilter, setTypeFilter] = useState<string>("all")
+  const [accountFilter, setAccountFilter] = useState<string>("all")
   const { toast } = useToast()
 
   const [accountFormData, setAccountFormData] = useState({
@@ -130,11 +133,7 @@ export default function BankAccountsPage() {
           'bank_transactions',
           '*',
           { business_id: businessId },
-          { 
-            orderBy: 'date', 
-            ascending: false,
-            limit: 100
-          }
+          { orderBy: 'date', ascending: false }
         )
         setTransactions((transactionsData as any[]) || [])
       } catch (transactionError) {
@@ -359,6 +358,20 @@ export default function BankAccountsPage() {
     })
     setIsTransactionFormOpen(false)
   }
+
+  const filteredTransactions = transactions.filter((transaction) => {
+    if (typeFilter !== "all" && transaction.type !== typeFilter) return false
+    if (accountFilter !== "all" && transaction.account_no !== accountFilter) return false
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase()
+      const matchesSearch =
+        (transaction.bank_name || "").toLowerCase().includes(term) ||
+        (transaction.account_no || "").toLowerCase().includes(term) ||
+        (transaction.purpose || "").toLowerCase().includes(term)
+      if (!matchesSearch) return false
+    }
+    return true
+  })
 
   const totalBalance = accounts.reduce((sum, account) => sum + account.current_balance, 0)
   const totalCredits = transactions
@@ -740,7 +753,45 @@ export default function BankAccountsPage() {
               <CardTitle className="text-xl font-bold text-blue-900">Transaction History</CardTitle>
               <p className="text-blue-600 text-sm">Recent banking transactions</p>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent className="p-4 space-y-4">
+              <div className="flex flex-col md:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    placeholder="Search by bank, account number or description..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger className="w-full md:w-[180px]">
+                    <SelectValue placeholder="Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="Deposit">Deposit</SelectItem>
+                    <SelectItem value="Withdrawal">Withdrawal</SelectItem>
+                    <SelectItem value="Expense">Expense</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={accountFilter} onValueChange={setAccountFilter}>
+                  <SelectTrigger className="w-full md:w-[220px]">
+                    <SelectValue placeholder="Account" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Accounts</SelectItem>
+                    {accounts.map((account) => (
+                      <SelectItem key={account.id} value={account.account_number}>
+                        {account.bank_name} - {account.account_number}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-sm text-slate-500">
+                {filteredTransactions.length} of {transactions.length} transactions
+              </p>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-slate-50 border-b border-slate-200">
@@ -753,7 +804,13 @@ export default function BankAccountsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {transactions.map((transaction) => (
+                    {filteredTransactions.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="p-8 text-center text-slate-500">
+                          No transactions match your search or filters.
+                        </td>
+                      </tr>
+                    ) : filteredTransactions.map((transaction) => (
                       <tr key={transaction.id} className="hover:bg-slate-50 transition-colors">
                         <td className="p-4 text-slate-600">
                           {new Date(transaction.date).toLocaleDateString('en-IN')}

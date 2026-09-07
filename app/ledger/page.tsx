@@ -106,7 +106,7 @@ export default function Ledger() {
       }
 
       // Fetch invoices for this party
-      const invoicesData = await fetchInvoices(businessId, undefined, 1000, user?.id)
+      const invoicesData = await fetchInvoices(businessId, undefined, undefined, user?.id)
       const partyInvoices = invoicesData.filter((invoice: any) => 
         invoice.party_name === party.name || invoice.party_id === partyId
       )

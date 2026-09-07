@@ -108,9 +108,10 @@ export default function Expenses() {
 
     // Filter by search term
     if (searchTerm) {
+      const term = searchTerm.toLowerCase()
       filtered = filtered.filter(expense =>
-        expense.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        expense.category.toLowerCase().includes(searchTerm.toLowerCase())
+        (expense.description || '').toLowerCase().includes(term) ||
+        (expense.category || '').toLowerCase().includes(term)
       )
     }
 

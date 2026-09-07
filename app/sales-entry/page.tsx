@@ -289,7 +289,6 @@ export default function SalesEntry() {
           .eq("business_id", businessId)
           .eq("type", "sales")
           .order("created_at", { ascending: false })
-          .limit(25)
       ])
 
       if (invoicesResult.error) throw invoicesResult.error
@@ -692,7 +691,9 @@ export default function SalesEntry() {
           inv.id === editingInvoice.id ? { ...inv, ...invoiceData } : inv
         ))
       } else {
-        setInvoices(prev => [result.data as unknown as Invoice, ...prev.slice(0, 24)]) // Keep only 25 recent invoices
+        // Keep the full list intact - truncating here would hide older invoices
+        // from the search box below the table (this caused a real bug before).
+        setInvoices(prev => [result.data as unknown as Invoice, ...prev])
       }
 
       toast({
@@ -1605,7 +1606,7 @@ export default function SalesEntry() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calculator className="h-5 w-5" />
-              Recent Invoices
+              Sales Invoices
             </CardTitle>
           </CardHeader>
           <CardContent>

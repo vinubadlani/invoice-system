@@ -82,7 +82,7 @@ export default function SalesPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [dateRange, setDateRange] = useState("30")
+  const [dateRange, setDateRange] = useState("all")
   const [businessId, setBusinessId] = useState<string>("")
   const [selectedInvoice, setSelectedInvoice] = useState<SalesData | null>(null)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
@@ -141,7 +141,7 @@ export default function SalesPage() {
 
       // FIXED: Use direct fetch without user verification for now
       // The business context is already verified via localStorage selection
-      const salesDataResult = await fetchInvoices(businessId, 'sales', 100)
+      const salesDataResult = await fetchInvoices(businessId, 'sales')
       console.log("Sales data result:", salesDataResult)
       console.log("Number of sales found:", salesDataResult.length)
       
@@ -636,6 +636,7 @@ export default function SalesPage() {
                   <SelectValue placeholder="Date Range" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="all">All time</SelectItem>
                   <SelectItem value="7">Last 7 days</SelectItem>
                   <SelectItem value="30">Last 30 days</SelectItem>
                   <SelectItem value="90">Last 3 months</SelectItem>

@@ -101,12 +101,10 @@ export default function PurchasesPage() {
     if (storedBusiness) {
       const business = JSON.parse(storedBusiness)
       setBusinessId(business.id)
-      
-      // Set current financial year
-      const currentYear = new Date().getFullYear()
-      const currentMonth = new Date().getMonth() + 1
-      const finYear = currentMonth >= 4 ? `${currentYear}-${currentYear + 1}` : `${currentYear - 1}-${currentYear}`
-      setFinancialYear(finYear)
+
+      // Default to showing every year's purchases; the user can narrow to a
+      // specific financial year from the filter above the table.
+      setFinancialYear("all")
     }
   }, [])
 
@@ -119,15 +117,17 @@ export default function PurchasesPage() {
   const fetchPurchases = async () => {
     try {
       setLoading(true)
-      const { start, end } = getFinancialYearRange(financialYear)
 
-      const data = await fetchInvoices(businessId, 'purchase', 2000)
+      const data = await fetchInvoices(businessId, 'purchase')
 
-      // Filter by financial year date range client-side
-      const filtered = data.filter((inv: any) => {
-        const d = inv.date
-        return d >= start && d <= end
-      })
+      // Filter by financial year date range client-side, unless "all" is selected
+      const filtered = financialYear === 'all'
+        ? data
+        : data.filter((inv: any) => {
+            const { start, end } = getFinancialYearRange(financialYear)
+            const d = inv.date
+            return d >= start && d <= end
+          })
 
       // Deduplicate by invoice ID to ensure one entry per invoice
       // (in case the API returns multiple rows for same invoice with different line items)

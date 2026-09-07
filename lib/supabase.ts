@@ -451,8 +451,14 @@ export async function queryBuilder(
     }
 
     return filteredRows
-  } catch (error) {
-    console.error('Query error:', error)
+  } catch (error: any) {
+    // Postgrest/RPC errors often carry the useful info on .message/.details/.hint/.code
+    // rather than as enumerable own properties, so a bare `console.error('...', error)`
+    // can print as an opaque "{}" and hide the real cause. Log something diagnosable.
+    const info = error?.message || error?.details || error?.hint || error?.code
+      ? { message: error?.message, details: error?.details, hint: error?.hint, code: error?.code }
+      : error
+    console.error(`Query error on "${table}":`, info)
     throw error
   }
 }
@@ -844,7 +850,10 @@ export async function fetchItems(businessId: string, _userId?: string) {
   }
 }
 
-export async function fetchInvoices(businessId: string, type?: "sales" | "purchase", limit = 50, _userId?: string) {
+// `limit` is opt-in only: pass a number to cap results, omit/undefined to fetch the
+// full history. Older callers used to default to 50/100 rows, which silently hid
+// any invoice beyond the most recent N - leave it unset unless you truly need a cap.
+export async function fetchInvoices(businessId: string, type?: "sales" | "purchase", limit?: number, _userId?: string) {
   try {
     if (!businessId) return []
 
@@ -853,7 +862,7 @@ export async function fetchInvoices(businessId: string, type?: "sales" | "purcha
       p_type: type || null,
     })
     const rows = data || []
-    return rows.slice(0, limit)
+    return typeof limit === 'number' ? rows.slice(0, limit) : rows
   } catch (error: any) {
     console.error('Error fetching invoices:', error?.message || 'Unknown error')
     return []

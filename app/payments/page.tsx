@@ -87,7 +87,7 @@ export default function PaymentsPage() {
       const [paymentsData, partiesData, invoicesData] = await Promise.all([
         queryBuilder('payments', '*', { business_id: businessId }, { orderBy: 'date', ascending: false }),
         fetchParties(businessId, undefined, user?.id),
-        fetchInvoices(businessId, undefined, 100) // Remove user_id parameter since invoices use business_id
+        fetchInvoices(businessId) // no cap - older invoices need to stay pickable when recording/searching payments
       ])
 
       // Handle payments data with proper type checking
@@ -142,10 +142,12 @@ export default function PaymentsPage() {
     let filtered = payments
 
     if (searchTerm) {
+      const term = searchTerm.toLowerCase()
       filtered = filtered.filter(payment =>
-        payment.party_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        payment.invoice_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        payment.mode.toLowerCase().includes(searchTerm.toLowerCase())
+        (payment.party_name || '').toLowerCase().includes(term) ||
+        (payment.invoice_no || '').toLowerCase().includes(term) ||
+        (payment.mode || '').toLowerCase().includes(term) ||
+        (payment.remarks || '').toLowerCase().includes(term)
       )
     }
 
