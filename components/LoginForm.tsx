@@ -199,7 +199,7 @@ export default function LoginForm() {
 
   if (showConfirmation) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
         <Card className="w-full max-w-md shadow-xl dark:bg-gray-800 dark:border-gray-700">
           <CardHeader className="text-center">
             <div className="bg-green-100 dark:bg-green-900 p-3 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
@@ -237,7 +237,7 @@ export default function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
       <div className="w-full max-w-md space-y-6">
         {/* Enhanced Header with 40% Bigger Logo */}
         <div className="text-center mb-8">
@@ -262,7 +262,7 @@ export default function LoginForm() {
             </div>
           </div>
           <div className="space-y-2">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-emerald-600 to-teal-500 dark:from-emerald-400 dark:to-teal-400 bg-clip-text text-transparent">
               Hisab Kitaab
             </h1>
             <div className="flex items-center justify-center gap-2 text-gray-600 dark:text-gray-300">
@@ -313,9 +313,9 @@ export default function LoginForm() {
 
         {/* Enhanced Login/Signup Form */}
         <Card className="shadow-xl border-0 dark:bg-gray-800 dark:border-gray-700">
-          <CardHeader className="bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-700 dark:to-purple-700 text-white rounded-t-lg">
+          <CardHeader className="bg-gradient-to-r from-emerald-600 to-teal-500 dark:from-emerald-700 dark:to-teal-700 text-white rounded-t-2xl">
             <CardTitle className="text-center">Welcome Back</CardTitle>
-            <CardDescription className="text-blue-100 dark:text-blue-200 text-center">
+            <CardDescription className="text-emerald-50 dark:text-emerald-200 text-center">
               Sign in to your account or create a new one
             </CardDescription>
           </CardHeader>
@@ -375,7 +375,7 @@ export default function LoginForm() {
                     </div>
                   </div>
 
-                  <Button type="submit" className="w-full h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 dark:from-blue-700 dark:to-purple-700 dark:hover:from-blue-800 dark:hover:to-purple-800" disabled={loading}>
+                  <Button type="submit" className="w-full h-12 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 dark:from-emerald-700 dark:to-teal-700 dark:hover:from-emerald-800 dark:hover:to-teal-800" disabled={loading}>
                     {loading ? (
                       <div className="flex items-center gap-2">
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
@@ -473,7 +473,7 @@ export default function LoginForm() {
 
                   <Button 
                     type="submit" 
-                    className="w-full h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 dark:from-blue-700 dark:to-purple-700 dark:hover:from-blue-800 dark:hover:to-purple-800" 
+                    className="w-full h-12 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 dark:from-emerald-700 dark:to-teal-700 dark:hover:from-emerald-800 dark:hover:to-teal-800" 
                     disabled={loading || passwordStrength.score < 40}
                   >
                     {loading ? (
@@ -522,7 +522,7 @@ export default function LoginForm() {
 
         {/* Database Setup Warning */}
         <Alert className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20">
-          <AlertCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+          <AlertCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
           <AlertDescription className="text-blue-800 dark:text-blue-300">
             <strong>First time setup?</strong> Make sure you've run the database setup scripts in your Supabase
             dashboard. The app will guide you through this process if needed.

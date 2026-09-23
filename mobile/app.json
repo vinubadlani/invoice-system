@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "HisabKitab",
+    "slug": "hisabkitab",
+    "scheme": "hisabkitab",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hisabkitab.app"
+    },
+    "android": {
+      "package": "com.hisabkitab.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#104281",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-sharing",
+      "expo-status-bar",
+      "@react-native-community/datetimepicker",
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "a98e7e99-b225-4cc6-8638-1b40d8ead37b"
+      }
+    },
+    "owner": "vinubadlani"
+  }
+}

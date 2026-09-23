@@ -37,7 +37,7 @@ interface SearchableSelectProps {
   allowAll?: boolean
   allLabel?: string
   /** Show a "Create new" option at the bottom of the list */
-  onCreateNew?: () => void
+  onCreateNew?: (searchValue: string) => void
   createNewLabel?: string
 }
 
@@ -56,6 +56,7 @@ export function SearchableSelect({
   createNewLabel = "Create new…",
 }: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false)
+  const [search, setSearch] = React.useState("")
 
   const selectedOption = options.find((opt) => opt.value === value)
 
@@ -66,7 +67,13 @@ export function SearchableSelect({
     : placeholder
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) setSearch("")
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -85,9 +92,32 @@ export function SearchableSelect({
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
         <Command>
-          <CommandInput placeholder={searchPlaceholder} />
+          <CommandInput
+            placeholder={searchPlaceholder}
+            value={search}
+            onValueChange={setSearch}
+          />
           <CommandList>
-            <CommandEmpty>{emptyMessage}</CommandEmpty>
+            <CommandEmpty>
+              <div className="space-y-2">
+                <p>{emptyMessage}</p>
+                {onCreateNew && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-blue-600"
+                    onClick={() => {
+                      setOpen(false)
+                      onCreateNew(search)
+                    }}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    {search ? `Create "${search}"` : createNewLabel}
+                  </Button>
+                )}
+              </div>
+            </CommandEmpty>
             <CommandGroup>
               {allowAll && (
                 <CommandItem
@@ -128,12 +158,13 @@ export function SearchableSelect({
             {onCreateNew && (
               <>
                 <CommandSeparator />
-                <CommandGroup>
+                <CommandGroup forceMount>
                   <CommandItem
                     value="__create_new__"
+                    forceMount
                     onSelect={() => {
                       setOpen(false)
-                      onCreateNew()
+                      onCreateNew(search)
                     }}
                     className="text-blue-600 font-medium"
                   >

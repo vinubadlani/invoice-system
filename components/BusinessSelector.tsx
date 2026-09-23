@@ -243,7 +243,7 @@ export default function BusinessSelector({ onBusinessChange, onBusinessSelect, c
         </div>
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
+            <Button size="sm" className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               Create Business
             </Button>

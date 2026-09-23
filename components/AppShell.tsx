@@ -36,11 +36,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // Auth is still resolving — show a slim top progress bar
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col items-center justify-center gap-4">
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
         <div className="w-56 space-y-2">
-          <p className="text-sm text-gray-500 dark:text-gray-400 text-center">Loading…</p>
-          <div className="h-1 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-            <div className="h-full bg-blue-600 rounded-full animate-[progress_1.4s_ease-in-out_infinite]" />
+          <p className="text-sm text-muted-foreground text-center">Loading…</p>
+          <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+            <div className="h-full bg-primary rounded-full animate-[progress_1.4s_ease-in-out_infinite]" />
           </div>
         </div>
       </div>
@@ -61,13 +61,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="min-h-screen bg-background">
       <SidebarNavigation
         businessName={activeBusiness.name || ""}
         onBusinessChange={() => {}}
       />
       <div className="transition-all duration-200 lg:pl-64 pt-14 lg:pt-0">
-        <main className="min-h-screen px-6 py-6">
+        <main className="min-h-screen px-4 py-6 sm:px-6 lg:px-8 lg:py-8 max-w-[1600px] mx-auto">
           {children}
         </main>
       </div>

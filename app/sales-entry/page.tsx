@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { supabase, getSupabaseClient } from "@/lib/supabase"
+import { supabase, getSupabaseClient, insertData, updateData } from "@/lib/supabase"
 import { useOptimizedData } from "@/lib/cache-store"
 import { useBusiness } from "@/app/context/BusinessContext"
 import { Plus, Edit, Trash2, Save, X, Loader2, Search, Calculator, Receipt, FileText, Building2, Upload, Download, CheckCircle, XCircle, AlertCircle } from "lucide-react"
@@ -161,6 +161,7 @@ export default function SalesEntry() {
   const [gstType, setGstType] = useState<"cgst_sgst" | "cgst_igst">("cgst_sgst")
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
   const [selectedBankAccountId, setSelectedBankAccountId] = useState("")
+  const [includeBankDetails, setIncludeBankDetails] = useState<boolean | null>(null)
   const [editingBankAccountId, setEditingBankAccountId] = useState<string | null>(null)
   const [isBankAccountFormOpen, setIsBankAccountFormOpen] = useState(false)
   const [bankAccountFormData, setBankAccountFormData] = useState({
@@ -171,6 +172,18 @@ export default function SalesEntry() {
     branch_name: "",
     account_holder_name: "",
     opening_balance: 0,
+  })
+  const [isNewPartyDialogOpen, setIsNewPartyDialogOpen] = useState(false)
+  const [savingNewParty, setSavingNewParty] = useState(false)
+  const [newPartyFormData, setNewPartyFormData] = useState({
+    name: "",
+    mobile: "",
+    email: "",
+    gstin: "",
+    address: "",
+    city: "",
+    state: "",
+    pincode: "",
   })
   const { toast } = useToast()
   const { selectedBusiness: contextBusiness } = useBusiness()
@@ -212,6 +225,28 @@ export default function SalesEntry() {
     setBusinessId(contextBusiness.id)
     fetchData(contextBusiness.id)
   }, [contextBusiness?.id])
+
+  // "Include bank details on invoice?" preference — ask once per business, then remember it
+  useEffect(() => {
+    if (!businessId) return
+    try {
+      const stored = localStorage.getItem(`sales_invoice_include_bank_details:${businessId}`)
+      setIncludeBankDetails(stored === null ? null : stored === "yes")
+    } catch {
+      setIncludeBankDetails(null)
+    }
+  }, [businessId])
+
+  const handleChooseIncludeBankDetails = useCallback((include: boolean) => {
+    setIncludeBankDetails(include)
+    if (businessId) {
+      try {
+        localStorage.setItem(`sales_invoice_include_bank_details:${businessId}`, include ? "yes" : "no")
+      } catch {
+        // ignore storage errors (e.g. private browsing)
+      }
+    }
+  }, [businessId])
 
   // Direct fetch function for debugging
   const fetchItemsDirectly = useCallback(async (businessId: string) => {
@@ -334,12 +369,6 @@ export default function SalesEntry() {
       return
     }
 
-    const client = getSupabaseClient()
-    if (!client) {
-      toast({ title: "Error", description: "Service temporarily unavailable.", variant: "destructive" })
-      return
-    }
-
     const payload = {
       business_id: businessId,
       bank_name: bankAccountFormData.bank_name.trim(),
@@ -359,43 +388,21 @@ export default function SalesEntry() {
     }
 
     try {
-      let result
-      if (editingBankAccountId) {
-        result = await client.from("bank_accounts").update(payload).eq("id", editingBankAccountId).select().single()
-      } else {
-        result = await client.from("bank_accounts").insert([payload]).select().single()
-      }
+      const { data, error } = editingBankAccountId
+        ? await updateData("bank_accounts", editingBankAccountId, payload)
+        : await insertData("bank_accounts", payload)
 
-      if (result.error) {
-        console.warn("Bank account save returned an error, but invoice form will continue:", result.error)
-        toast({ title: "Info", description: "Bank account could not be saved right now, but you can still use the entered details on this invoice.", variant: "default" })
-        setFormData(prev => ({
-          ...prev,
-          payment_bank_name: payload.bank_name,
-          payment_account_number: payload.account_number,
-          payment_ifsc_code: payload.ifsc_code,
-        }))
-        setIsBankAccountFormOpen(false)
-        setEditingBankAccountId(null)
-        setBankAccountFormData({
-          bank_name: "",
-          account_number: "",
-          account_type: "Savings",
-          ifsc_code: "",
-          branch_name: "",
-          account_holder_name: "",
-          opening_balance: 0,
-        })
-        return
-      }
+      if (error) throw error
+
+      const savedAccountId = editingBankAccountId || (Array.isArray(data) ? data[0]?.id : undefined)
 
       await loadBankAccounts(businessId)
-      setSelectedBankAccountId(result.data?.id || "")
+      setSelectedBankAccountId(savedAccountId || "")
       setFormData(prev => ({
         ...prev,
-        payment_bank_name: result.data?.bank_name || payload.bank_name,
-        payment_account_number: result.data?.account_number || payload.account_number,
-        payment_ifsc_code: result.data?.ifsc_code || payload.ifsc_code,
+        payment_bank_name: payload.bank_name,
+        payment_account_number: payload.account_number,
+        payment_ifsc_code: payload.ifsc_code,
       }))
       setEditingBankAccountId(null)
       setIsBankAccountFormOpen(false)
@@ -410,9 +417,75 @@ export default function SalesEntry() {
       })
       toast({ title: "Success", description: editingBankAccountId ? "Bank account updated successfully." : "Bank account saved successfully." })
     } catch (error: any) {
+      console.error("Error saving bank account:", error)
       toast({ title: "Error", description: error?.message || "Failed to save bank account.", variant: "destructive" })
     }
   }, [bankAccountFormData, businessId, editingBankAccountId, loadBankAccounts, toast])
+
+  const handleOpenNewPartyDialog = useCallback((searchValue: string) => {
+    setNewPartyFormData({
+      name: searchValue.trim(),
+      mobile: "",
+      email: "",
+      gstin: "",
+      address: "",
+      city: "",
+      state: "",
+      pincode: "",
+    })
+    setIsNewPartyDialogOpen(true)
+  }, [])
+
+  const handleCreateParty = useCallback(async () => {
+    if (!businessId) {
+      toast({ title: "Error", description: "Please select a business first.", variant: "destructive" })
+      return
+    }
+    if (!newPartyFormData.name.trim()) {
+      toast({ title: "Error", description: "Customer name is required.", variant: "destructive" })
+      return
+    }
+
+    setSavingNewParty(true)
+    try {
+      const { data, error } = await insertData("parties", {
+        business_id: businessId,
+        name: newPartyFormData.name.trim(),
+        mobile: newPartyFormData.mobile.trim(),
+        email: newPartyFormData.email.trim(),
+        gstin: newPartyFormData.gstin.trim(),
+        address: newPartyFormData.address.trim(),
+        city: newPartyFormData.city.trim(),
+        state: newPartyFormData.state.trim(),
+        pincode: newPartyFormData.pincode.trim(),
+        type: "Debtor",
+        balance_type: "To Collect",
+        opening_balance: 0,
+      })
+
+      if (error) throw error
+
+      const newPartyId = data?.[0]?.id
+      const newParty: Party = {
+        id: newPartyId || "",
+        name: newPartyFormData.name.trim(),
+        gstin: newPartyFormData.gstin.trim(),
+        address: newPartyFormData.address.trim(),
+        city: newPartyFormData.city.trim(),
+        state: newPartyFormData.state.trim(),
+      }
+
+      setParties(prev => [...prev, newParty])
+      setFormData(prev => ({ ...prev, party_id: newParty.id }))
+      clearAllCache()
+      setIsNewPartyDialogOpen(false)
+      toast({ title: "Success", description: `Customer "${newParty.name}" created and selected.` })
+    } catch (error: any) {
+      toast({ title: "Error", description: error?.message || "Failed to create customer.", variant: "destructive" })
+    } finally {
+      setSavingNewParty(false)
+    }
+  }, [businessId, newPartyFormData, clearAllCache, toast])
 
   // Optimized filtered items with comprehensive search
   const filteredItems = useMemo(() => {
@@ -619,14 +692,20 @@ export default function SalesEntry() {
           { __meta__: true, is_gst: isGst, gst_type: isGst ? gstType : "cgst_sgst" },
           {
             __meta__: true,
-            invoice_payment_details: {
+            invoice_payment_details: includeBankDetails ? {
               bank_name: formData.payment_bank_name,
               account_number: formData.payment_account_number,
               ifsc_code: formData.payment_ifsc_code,
               upi_id: formData.payment_upi_id,
               qr_code_url: formData.payment_qr_code_url,
+            } : {
+              bank_name: "",
+              account_number: "",
+              ifsc_code: "",
+              upi_id: "",
+              qr_code_url: "",
             },
-            selected_bank_account_id: selectedBankAccountId || null,
+            selected_bank_account_id: includeBankDetails ? (selectedBankAccountId || null) : null,
           },
           { __meta__: true, invoice_terms: formData.invoice_terms },
           { __meta__: true, invoice_footer: formData.invoice_footer },
@@ -715,7 +794,7 @@ export default function SalesEntry() {
     } finally {
       setSaving(false)
     }
-  }, [businessId, invoiceItems, formData, parties, totals, editingInvoice, toast, resetForm])
+  }, [businessId, invoiceItems, formData, parties, totals, editingInvoice, toast, resetForm, isGst, gstType, includeBankDetails, selectedBankAccountId])
 
   const handleEdit = useCallback((invoice: Invoice) => {
     // Extract other_charges meta from items if present
@@ -730,6 +809,12 @@ export default function SalesEntry() {
     setIsGst(metaFlags?.is_gst !== false)
     setGstType(metaFlags?.gst_type === "cgst_igst" || metaFlags?.gst_type === "igst" ? "cgst_igst" : "cgst_sgst")
     setSelectedBankAccountId(paymentMeta?.selected_bank_account_id || '')
+    const hasSavedPaymentDetails = Boolean(
+      paymentMeta?.selected_bank_account_id ||
+      paymentMeta?.invoice_payment_details?.bank_name ||
+      paymentMeta?.invoice_payment_details?.account_number
+    )
+    if (hasSavedPaymentDetails) setIncludeBankDetails(true)
     setFormData({
       invoice_no: invoice.invoice_no,
       date: invoice.date,
@@ -971,6 +1056,8 @@ export default function SalesEntry() {
                         placeholder="Select Customer"
                         searchPlaceholder="Search customer…"
                         emptyMessage="No customers found."
+                        onCreateNew={handleOpenNewPartyDialog}
+                        createNewLabel="Add new customer…"
                       />
                     </div>
                   </div>
@@ -1000,7 +1087,42 @@ export default function SalesEntry() {
 
                 <Separator />
 
+                {/* Ask once whether to include bank details on the invoice */}
+                {includeBankDetails === null && (
+                  <Card className="bg-blue-50 border-dashed border-blue-200">
+                    <CardContent className="p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-800">Add bank details to this invoice?</h3>
+                          <p className="text-xs text-gray-600">You can pick a saved bank account. We'll remember your choice for future invoices — you can still change it anytime.</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button type="button" size="sm" onClick={() => handleChooseIncludeBankDetails(true)}>
+                            Yes, add bank details
+                          </Button>
+                          <Button type="button" variant="outline" size="sm" onClick={() => handleChooseIncludeBankDetails(false)}>
+                            No, skip it
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Bank details opted out */}
+                {includeBankDetails === false && (
+                  <Card className="bg-gray-50 border-dashed">
+                    <CardContent className="p-4 flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm text-gray-600">Bank details are not included on this invoice.</p>
+                      <Button type="button" variant="outline" size="sm" onClick={() => handleChooseIncludeBankDetails(true)}>
+                        Add bank details
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* Payment Details */}
+                {includeBankDetails === true && (
                 <Card className="bg-gray-50 border-dashed">
                   <CardContent className="p-4 space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1045,6 +1167,9 @@ export default function SalesEntry() {
                           }
                         }}>
                           Edit selected
+                        </Button>
+                        <Button type="button" variant="ghost" size="sm" className="text-gray-500" onClick={() => handleChooseIncludeBankDetails(false)}>
+                          Don't include on this invoice
                         </Button>
                       </div>
                     </div>
@@ -1205,6 +1330,7 @@ export default function SalesEntry() {
                     </div>
                   </CardContent>
                 </Card>
+                )}
 
                 {/* Add Items Section */}
                 <div>
@@ -1633,6 +1759,106 @@ export default function SalesEntry() {
           fetchData(businessId)
         }}
       />
+
+      {/* Add New Customer Dialog */}
+      <Dialog open={isNewPartyDialogOpen} onOpenChange={setIsNewPartyDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add New Customer</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <Label htmlFor="new_party_name">Customer Name *</Label>
+              <Input
+                id="new_party_name"
+                value={newPartyFormData.name}
+                onChange={(e) => setNewPartyFormData(prev => ({ ...prev, name: e.target.value }))}
+                className="mt-1"
+                autoFocus
+              />
+            </div>
+            <div>
+              <Label htmlFor="new_party_mobile">Mobile</Label>
+              <Input
+                id="new_party_mobile"
+                value={newPartyFormData.mobile}
+                onChange={(e) => setNewPartyFormData(prev => ({ ...prev, mobile: e.target.value }))}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="new_party_email">Email</Label>
+              <Input
+                id="new_party_email"
+                type="email"
+                value={newPartyFormData.email}
+                onChange={(e) => setNewPartyFormData(prev => ({ ...prev, email: e.target.value }))}
+                className="mt-1"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <Label htmlFor="new_party_gstin">GSTIN</Label>
+              <Input
+                id="new_party_gstin"
+                value={newPartyFormData.gstin}
+                onChange={(e) => setNewPartyFormData(prev => ({ ...prev, gstin: e.target.value.toUpperCase() }))}
+                className="mt-1"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <Label htmlFor="new_party_address">Address</Label>
+              <Textarea
+                id="new_party_address"
+                value={newPartyFormData.address}
+                onChange={(e) => setNewPartyFormData(prev => ({ ...prev, address: e.target.value }))}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="new_party_city">City</Label>
+              <Input
+                id="new_party_city"
+                value={newPartyFormData.city}
+                onChange={(e) => setNewPartyFormData(prev => ({ ...prev, city: e.target.value }))}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="new_party_state">State</Label>
+              <Input
+                id="new_party_state"
+                value={newPartyFormData.state}
+                onChange={(e) => setNewPartyFormData(prev => ({ ...prev, state: e.target.value }))}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="new_party_pincode">Pincode</Label>
+              <Input
+                id="new_party_pincode"
+                value={newPartyFormData.pincode}
+                onChange={(e) => setNewPartyFormData(prev => ({ ...prev, pincode: e.target.value }))}
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsNewPartyDialogOpen(false)} disabled={savingNewParty}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleCreateParty} disabled={savingNewParty}>
+              {savingNewParty ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Create Customer"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AuthenticatedLayout>
   )
 }

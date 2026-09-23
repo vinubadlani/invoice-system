@@ -77,19 +77,19 @@ export default function DataTable({
               className="pl-10"
             />
           </div>
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-muted-foreground">
             {filteredData.length} of {data.length} records
           </span>
         </div>
       )}
 
       {/* Table */}
-      <div className="rounded-lg border overflow-hidden">
+      <div className="rounded-2xl border border-border/60 shadow-soft overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow className="bg-gray-50">
+            <TableRow>
               {columns.map((column) => (
-                <TableHead key={column.key} className="font-medium">
+                <TableHead key={column.key}>
                   {column.label}
                 </TableHead>
               ))}
@@ -99,16 +99,16 @@ export default function DataTable({
           <TableBody>
             {currentData.length === 0 ? (
               <TableRow>
-                <TableCell 
-                  colSpan={columns.length + (actions ? 1 : 0)} 
-                  className="text-center py-8 text-gray-500"
+                <TableCell
+                  colSpan={columns.length + (actions ? 1 : 0)}
+                  className="text-center py-10 text-muted-foreground"
                 >
                   No data found
                 </TableCell>
               </TableRow>
             ) : (
               currentData.map((row, index) => (
-                <TableRow key={row.id || index} className="hover:bg-gray-50">
+                <TableRow key={row.id || index}>
                   {columns.map((column) => (
                     <TableCell key={column.key}>
                       {column.render 
@@ -132,7 +132,7 @@ export default function DataTable({
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-muted-foreground">
             Showing {startIndex + 1} to {Math.min(endIndex, filteredData.length)} of {filteredData.length} results
           </div>
           <div className="flex items-center space-x-2">
@@ -152,7 +152,7 @@ export default function DataTable({
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-muted-foreground">
               Page {currentPage} of {totalPages}
             </span>
             <Button

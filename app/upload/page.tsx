@@ -649,7 +649,7 @@ export default function UploadPage() {
               business_id: businessId,
               sales_price: parseFloat(row.edited.sales_price) || 0,
               purchase_price: parseFloat(row.edited.purchase_price) || 0,
-              gst_percent: parseFloat(row.edited.gst_percent) || 18,
+              gst_percent: isNaN(parseFloat(row.edited.gst_percent)) ? 18 : parseFloat(row.edited.gst_percent),
               opening_stock: parseFloat(row.edited.opening_stock) || 0
             }])
           } else if (reviewData.type === 'sales-entry') {

@@ -14,10 +14,18 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { CircularProgress } from "@/components/ui/circular-progress"
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
+import { AreaChart, Area, CartesianGrid, XAxis } from "recharts"
 import AuthenticatedLayout from "@/components/AuthenticatedLayout"
 import { useBusiness } from "@/app/context/BusinessContext"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
+
+const trendChartConfig: ChartConfig = {
+  sales: { label: "Sales", color: "#2a78d6" },
+  purchases: { label: "Purchases", color: "#eb6834" },
+}
 
 type DashboardWidgetKey =
   | "totalSales"
@@ -66,9 +74,16 @@ interface RecentActivity {
   status: string
 }
 
+interface TrendPoint {
+  day: string
+  sales: number
+  purchases: number
+}
+
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([])
+  const [trendData, setTrendData] = useState<TrendPoint[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -122,6 +137,24 @@ export default function Dashboard() {
         pendingInvoices, thisMonthSales, thisMonthPurchases,
         profit: totalSales - totalPurchases
       })
+
+      // Last 7 days sales vs purchases trend
+      const days: TrendPoint[] = []
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now)
+        d.setDate(d.getDate() - i)
+        d.setHours(0, 0, 0, 0)
+        const next = new Date(d)
+        next.setDate(next.getDate() + 1)
+        const sales = salesInvoices
+          .filter(inv => { const t = new Date(inv.date); return t >= d && t < next })
+          .reduce((sum, inv) => sum + (inv.net_total || 0), 0)
+        const purchases = purchaseInvoices
+          .filter(inv => { const t = new Date(inv.date); return t >= d && t < next })
+          .reduce((sum, inv) => sum + (inv.net_total || 0), 0)
+        days.push({ day: d.toLocaleDateString("en-IN", { weekday: "short" }), sales, purchases })
+      }
+      setTrendData(days)
 
       const activities: RecentActivity[] = [
         ...salesInvoices.slice(0, 5).map(inv => ({
@@ -206,7 +239,7 @@ export default function Dashboard() {
             </div>
             <div className="h-1.5 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
               <div
-                className="h-full bg-blue-600 rounded-full transition-all duration-200 ease-out"
+                className="h-full bg-primary rounded-full transition-all duration-200 ease-out"
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -388,7 +421,7 @@ export default function Dashboard() {
           {visibleStatCards.map((card) => {
             const Icon = card.icon
             return (
-              <Card key={card.label} className="border border-gray-200 dark:border-gray-800 shadow-none hover:shadow-sm transition-shadow">
+              <Card key={card.label} className="hover:shadow-soft-lg hover:-translate-y-0.5 transition-all">
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
@@ -396,7 +429,7 @@ export default function Dashboard() {
                       <p className="mt-1.5 text-2xl font-bold text-gray-900 dark:text-white truncate">{card.value}</p>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{card.sub}</p>
                     </div>
-                    <div className={`h-10 w-10 rounded-lg ${card.iconBg} flex items-center justify-center shrink-0 ml-3`}>
+                    <div className={`h-11 w-11 rounded-2xl ${card.iconBg} flex items-center justify-center shrink-0 ml-3`}>
                       <Icon className={`h-5 w-5 ${card.iconColor}`} />
                     </div>
                   </div>
@@ -412,9 +445,9 @@ export default function Dashboard() {
           {secondaryStats.map((item) => {
             const Icon = item.icon
             return (
-              <Card key={item.label} className="border border-gray-200 dark:border-gray-800 shadow-none">
+              <Card key={item.label}>
                 <CardContent className="p-4 flex items-center gap-3">
-                  <div className={`h-9 w-9 rounded-lg ${item.bg} flex items-center justify-center shrink-0`}>
+                  <div className={`h-10 w-10 rounded-2xl ${item.bg} flex items-center justify-center shrink-0`}>
                     <Icon className={`h-4 w-4 ${item.color}`} />
                   </div>
                   <div>
@@ -430,7 +463,7 @@ export default function Dashboard() {
 
         {/* Quick Actions */}
         {widgetPrefs.quickActions && (
-          <Card className="border border-gray-200 dark:border-gray-800 shadow-none">
+          <Card>
             <CardHeader className="pb-3 pt-5 px-5">
               <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Quick Actions</CardTitle>
             </CardHeader>
@@ -440,8 +473,8 @@ export default function Dashboard() {
                   const Icon = action.icon
                   return (
                     <Link key={action.title} href={action.href}>
-                      <div className="group flex flex-col items-center gap-2.5 p-3 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-all text-center">
-                        <div className={`h-10 w-10 rounded-xl ${action.bg} flex items-center justify-center group-hover:scale-105 transition-transform`}>
+                      <div className="group flex flex-col items-center gap-2.5 p-3 rounded-2xl border border-border/60 hover:border-transparent hover:shadow-soft hover:bg-muted/40 cursor-pointer transition-all text-center">
+                        <div className={`h-11 w-11 rounded-2xl ${action.bg} flex items-center justify-center group-hover:scale-105 transition-transform`}>
                           <Icon className={`h-5 w-5 ${action.color}`} />
                         </div>
                         <div>
@@ -457,12 +490,61 @@ export default function Dashboard() {
           </Card>
         )}
 
+        {/* Weekly Trend */}
+        <Card>
+          <CardHeader className="pb-3 pt-5 px-5 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Weekly Trend</CardTitle>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Sales vs purchases, last 7 days</p>
+            </div>
+            <div className="flex items-center gap-3 text-xs">
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: "#2a78d6" }} />Sales</span>
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: "#eb6834" }} />Purchases</span>
+            </div>
+          </CardHeader>
+          <CardContent className="px-5 pb-5">
+            <ChartContainer config={trendChartConfig} className="h-[220px] w-full aspect-auto">
+              <AreaChart data={trendData} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="fillSales" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#2a78d6" stopOpacity={0.28} />
+                    <stop offset="95%" stopColor="#2a78d6" stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="fillPurchases" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#eb6834" stopOpacity={0.22} />
+                    <stop offset="95%" stopColor="#eb6834" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-border/60" />
+                <XAxis dataKey="day" tickLine={false} axisLine={false} tickMargin={8} fontSize={11} />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Area
+                  type="monotone"
+                  dataKey="purchases"
+                  stroke="#eb6834"
+                  strokeWidth={2}
+                  fill="url(#fillPurchases)"
+                  dot={false}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="sales"
+                  stroke="#2a78d6"
+                  strokeWidth={2}
+                  fill="url(#fillSales)"
+                  dot={false}
+                />
+              </AreaChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+
         {/* Bottom row */}
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
 
           {/* Recent Activity */}
           {widgetPrefs.recentActivity && (
-          <Card className="xl:col-span-3 border border-gray-200 dark:border-gray-800 shadow-none">
+          <Card className="xl:col-span-3">
             <CardHeader className="pb-3 pt-5 px-5 flex flex-row items-center justify-between">
               <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Recent Activity</CardTitle>
               <Badge variant="secondary" className="text-xs">{recentActivities.length} records</Badge>
@@ -473,7 +555,7 @@ export default function Dashboard() {
                   {recentActivities.map((activity, index) => (
                     <div key={activity.id}>
                       <div className="flex items-center gap-3 py-2.5">
-                        <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${
+                        <div className={`h-9 w-9 rounded-xl flex items-center justify-center shrink-0 ${
                           activity.type === "sale"
                             ? "bg-blue-50 dark:bg-blue-950/40"
                             : activity.type === "purchase"
@@ -523,45 +605,36 @@ export default function Dashboard() {
 
           {/* Performance */}
           {widgetPrefs.performance && (
-          <Card className={`${widgetPrefs.recentActivity ? "xl:col-span-2" : "xl:col-span-5"} border border-gray-200 dark:border-gray-800 shadow-none`}>
+          <Card className={widgetPrefs.recentActivity ? "xl:col-span-2" : "xl:col-span-5"}>
             <CardHeader className="pb-3 pt-5 px-5">
               <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Performance</CardTitle>
             </CardHeader>
-            <CardContent className="px-5 pb-5 space-y-6">
-              {/* Monthly Sales */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Monthly Sales Target</p>
-                  <p className="text-xs font-semibold text-gray-900 dark:text-white">
-                    {Math.min(((stats.thisMonthSales / 500000) * 100), 100).toFixed(0)}%
-                  </p>
-                </div>
-                <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-blue-600 rounded-full transition-all duration-700"
-                    style={{ width: `${Math.min((stats.thisMonthSales / 500000) * 100, 100)}%` }}
-                  />
-                </div>
-                <p className="text-[11px] text-gray-400">₹{stats.thisMonthSales.toLocaleString()} of ₹5,00,000</p>
-              </div>
-
-              {/* Collection */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Collection Rate</p>
-                  <p className="text-xs font-semibold text-gray-900 dark:text-white">
-                    {stats.pendingInvoices === 0 ? "100" : Math.max(0, 100 - stats.pendingInvoices * 10)}%
-                  </p>
-                </div>
-                <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-emerald-500 rounded-full transition-all duration-700"
-                    style={{ width: `${stats.pendingInvoices === 0 ? 100 : Math.max(0, 100 - stats.pendingInvoices * 10)}%` }}
-                  />
-                </div>
-                <p className="text-[11px] text-gray-400">
-                  {stats.pendingInvoices === 0 ? "All invoices collected" : `${stats.pendingInvoices} invoices pending`}
-                </p>
+            <CardContent className="px-5 pb-5 space-y-5">
+              {/* Radial gauge tiles */}
+              <div className="grid grid-cols-2 gap-3">
+                {(() => {
+                  const salesTarget = Math.min((stats.thisMonthSales / 500000) * 100, 100)
+                  const collectionRate = stats.pendingInvoices === 0 ? 100 : Math.max(0, 100 - stats.pendingInvoices * 10)
+                  const profitMargin = stats.totalSales > 0 ? Math.max(0, Math.min(100, (stats.profit / stats.totalSales) * 100)) : 0
+                  const purchaseRatio = stats.totalSales > 0 ? Math.min(100, (stats.totalPurchases / stats.totalSales) * 100) : 0
+                  const gauges = [
+                    { label: "Sales Target", value: salesTarget, bg: "bg-blue-50 dark:bg-blue-950/30", ring: "stroke-blue-500", track: "stroke-blue-500/15", text: "text-blue-700 dark:text-blue-300", labelText: "text-blue-600/80 dark:text-blue-400/80" },
+                    { label: "Collection", value: collectionRate, bg: "bg-emerald-50 dark:bg-emerald-950/30", ring: "stroke-emerald-500", track: "stroke-emerald-500/15", text: "text-emerald-700 dark:text-emerald-300", labelText: "text-emerald-600/80 dark:text-emerald-400/80" },
+                    { label: "Profit Margin", value: profitMargin, bg: "bg-violet-50 dark:bg-violet-950/30", ring: "stroke-violet-500", track: "stroke-violet-500/15", text: "text-violet-700 dark:text-violet-300", labelText: "text-violet-600/80 dark:text-violet-400/80" },
+                    { label: "Purchase Ratio", value: purchaseRatio, bg: "bg-orange-50 dark:bg-orange-950/30", ring: "stroke-orange-500", track: "stroke-orange-500/15", text: "text-orange-700 dark:text-orange-300", labelText: "text-orange-600/80 dark:text-orange-400/80" },
+                  ]
+                  return gauges.map((g) => (
+                    <div
+                      key={g.label}
+                      className={`rounded-2xl p-3 flex flex-col items-center gap-2 text-center ${g.bg}`}
+                    >
+                      <CircularProgress value={g.value} size={60} strokeWidth={6} trackClassName={g.track} progressClassName={g.ring}>
+                        <span className={`text-xs font-bold ${g.text}`}>{g.value.toFixed(0)}%</span>
+                      </CircularProgress>
+                      <p className={`text-[11px] font-medium leading-tight ${g.labelText}`}>{g.label}</p>
+                    </div>
+                  ))
+                })()}
               </div>
 
               <Separator />
