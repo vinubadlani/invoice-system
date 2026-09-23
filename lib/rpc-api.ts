@@ -266,4 +266,23 @@ export const rpcApi = {
   profile: {
     sync: (fullName?: string | null) => rpcCall<boolean>("rpc_sync_user_profile", { p_full_name: fullName || null }),
   },
+
+  amazon: {
+    getConnections: (businessId: string) => rpcCall<any[]>("rpc_get_amazon_connections", { p_business_id: businessId }),
+    disconnect: (connectionId: string) => rpcCall<boolean>("rpc_disconnect_amazon_connection", { p_connection_id: connectionId }),
+    getOrders: (businessId: string, connectionId?: string | null) => rpcCall<any[]>("rpc_get_amazon_orders", {
+      p_business_id: businessId,
+      p_connection_id: connectionId || null,
+    }),
+    getMappings: (businessId: string, connectionId?: string | null, status?: string | null) => rpcCall<any[]>("rpc_get_amazon_product_mappings", {
+      p_business_id: businessId,
+      p_connection_id: connectionId || null,
+      p_mapping_status: status || null,
+    }),
+    mapSku: (mappingId: string, itemId: string | null, status: "mapped" | "unmapped" | "ignored" = "mapped") => rpcCall<boolean>("rpc_map_amazon_sku", {
+      p_mapping_id: mappingId,
+      p_item_id: itemId,
+      p_mapping_status: status,
+    }),
+  },
 }

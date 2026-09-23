@@ -1,10 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { supabase, getSupabaseClient } from "@/lib/supabase"
 import { useBusiness } from "@/app/context/BusinessContext"
 import { Business } from "@/lib/types"
-import { Save, Building, User, Bell, Shield, Palette, Database, FileText, Eye } from "lucide-react"
+import { Save, Building, User, Bell, Shield, Palette, Database, FileText, Eye, Plug } from "lucide-react"
+import AmazonIntegrationCard from "@/components/integrations/AmazonIntegrationCard"
+import AmazonSkuMappingTable from "@/components/integrations/AmazonSkuMappingTable"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -224,7 +226,7 @@ export default function Settings() {
         <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
 
         <Tabs defaultValue="business" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="business">
               <Building className="h-4 w-4 mr-2" />
               Business
@@ -232,6 +234,10 @@ export default function Settings() {
             <TabsTrigger value="templates">
               <FileText className="h-4 w-4 mr-2" />
               Templates
+            </TabsTrigger>
+            <TabsTrigger value="integrations">
+              <Plug className="h-4 w-4 mr-2" />
+              Integrations
             </TabsTrigger>
             <TabsTrigger value="user">
               <User className="h-4 w-4 mr-2" />
@@ -507,6 +513,19 @@ export default function Settings() {
                 </div>
               </CardContent>
             </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="integrations">
+            <div className="space-y-6">
+              {business ? (
+                <Suspense fallback={<div className="text-sm text-gray-500">Loading integrations...</div>}>
+                  <AmazonIntegrationCard businessId={business.id} />
+                  <AmazonSkuMappingTable businessId={business.id} />
+                </Suspense>
+              ) : (
+                <p className="text-sm text-gray-500">Select a business to manage integrations.</p>
+              )}
             </div>
           </TabsContent>
 
