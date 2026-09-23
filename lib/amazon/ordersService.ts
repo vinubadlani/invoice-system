@@ -6,16 +6,14 @@ import { getSpApiBaseUrl } from "./config"
 import { mapAmazonStatusToInvoiceStatus } from "./statusMapping"
 import { logAmazonEvent } from "./logger"
 
-// Orders API v2026-01-01 (the current, non-deprecated version — v0's
-// getOrders/getOrderItems are deprecated and NOT used here). Source:
-// developer-docs.amazon.com/sp-api/docs/orders-api and
-// github.com/amzn/selling-partner-api-models/.../orders_2026-01-01.json
-// (verified Sep 2026). Re-confirm exact field names against the first real
-// sandbox response before relying on this in production — the shapes below
-// were read from Amazon's published model, not exercised against a live
-// sandbox call yet, and the field-name lookups are deliberately isolated
-// (search for "ORDER FIELD MAPPING" below) so a mismatch is a one-line fix.
-const ORDERS_API_PATH = "/orders/2026-01-01/orders"
+// Orders API v0 — GET /orders/v0/orders (list) and
+// GET /orders/v0/orders/{orderId}/orderItems (line items). This is the only
+// version of the Orders API SP-API exposes; a prior "2026-01-01" path here
+// was hitting a route that doesn't exist (confirmed via the sandbox's
+// InvalidInput/"Could not match input arguments" response) and always
+// failed with 400. Responses are wrapped in a top-level "payload" object
+// and fields are PascalCase — see the ORDER FIELD MAPPING comments below.
+const ORDERS_API_PATH = "/orders/v0/orders"
 
 const MAX_PAGES_PER_SYNC = 5
 const MAX_ORDER_DETAIL_CALLS_PER_SYNC = 100
@@ -67,32 +65,39 @@ export async function syncOrdersForConnection(connectionId: string, businessId: 
         path: ORDERS_API_PATH,
         accessToken,
         query: {
-          marketplaceIds: row.marketplace_id,
-          createdAfter: paginationToken ? undefined : createdAfter,
-          paginationToken,
-          maxResultsPerPage: "50",
+          MarketplaceIds: row.marketplace_id,
+          CreatedAfter: paginationToken ? undefined : createdAfter,
+          NextToken: paginationToken,
+          MaxResultsPerPage: "50",
         },
       })
 
-      // ORDER FIELD MAPPING (search results): the list of order summaries
-      // and the next-page token. Confirm exact key names on first live call.
-      const orderSummaries: any[] = searchResult?.orders ?? []
-      paginationToken = searchResult?.pagination?.nextToken ?? searchResult?.nextToken ?? undefined
+      // ORDER FIELD MAPPING (list orders): payload.Orders is the list of
+      // order summaries, payload.NextToken the next-page cursor.
+      const orderSummaries: any[] = searchResult?.payload?.Orders ?? []
+      paginationToken = searchResult?.payload?.NextToken ?? undefined
 
       for (const summary_ of orderSummaries) {
         if (orderDetailCalls >= MAX_ORDER_DETAIL_CALLS_PER_SYNC) break
-        const orderId: string | undefined = summary_?.orderId
+        const orderId: string | undefined = summary_?.AmazonOrderId
         if (!orderId) continue
 
         orderDetailCalls += 1
         try {
-          const fullOrder = await callSpApi<any>({
+          // The list summary already has status/total/dates; only the line
+          // items need a separate call (v0 has no "get full order" endpoint
+          // that includes items — only /orderItems).
+          const itemsResult = await callSpApi<any>({
             baseUrl,
-            path: `${ORDERS_API_PATH}/${encodeURIComponent(orderId)}`,
+            path: `${ORDERS_API_PATH}/${encodeURIComponent(orderId)}/orderItems`,
             accessToken,
           })
+          const orderItems = itemsResult?.payload?.OrderItems ?? []
 
-          const result = await syncOneOrder(admin, businessId, connectionId, row.marketplace_id, fullOrder)
+          const result = await syncOneOrder(admin, businessId, connectionId, row.marketplace_id, {
+            ...summary_,
+            OrderItems: orderItems,
+          })
           if (result === "created") summary.imported += 1
           else if (result === "updated") summary.updated += 1
           if (result === "needs_mapping") summary.unmapped += 1
@@ -126,13 +131,13 @@ async function syncOneOrder(
   marketplaceId: string,
   order: any
 ): Promise<"created" | "updated" | "needs_mapping"> {
-  // ORDER FIELD MAPPING (getOrder detail): confirm against first live call.
-  const orderId: string = order.orderId
-  const fulfillmentStatus: string | undefined = order.fulfillment?.fulfillmentStatus
-  const purchaseDate: string | undefined = order.createdTime
-  const totalAmount: number | undefined = order.proceeds?.grandTotal?.amount
-  const totalCurrency: string | undefined = order.proceeds?.grandTotal?.currencyCode
-  const orderItems: any[] = order.orderItems ?? []
+  // ORDER FIELD MAPPING (Orders API v0 — order summary + /orderItems).
+  const orderId: string = order.AmazonOrderId
+  const fulfillmentStatus: string | undefined = order.OrderStatus
+  const purchaseDate: string | undefined = order.PurchaseDate
+  const totalAmount: number | undefined = order.OrderTotal?.Amount !== undefined ? Number(order.OrderTotal.Amount) : undefined
+  const totalCurrency: string | undefined = order.OrderTotal?.CurrencyCode
+  const orderItems: any[] = order.OrderItems ?? []
 
   const nowIso = new Date().toISOString()
 
@@ -173,12 +178,14 @@ async function syncOneOrder(
   const invoiceItems: any[] = []
 
   for (const orderItem of orderItems) {
-    // ORDER FIELD MAPPING (order item): confirm against first live call.
-    const sku: string = orderItem.product?.sellerSku ?? `UNKNOWN-${orderItem.orderItemId ?? ""}`
-    const asin: string | null = orderItem.product?.asin ?? null
-    const title: string = orderItem.product?.title ?? sku
-    const quantity: number = orderItem.quantityOrdered ?? 1
-    const unitPrice: number = orderItem.product?.price?.unitPrice?.amount ?? 0
+    // ORDER FIELD MAPPING (order item, from /orderItems): ItemPrice is the
+    // line total for the quantity, not a per-unit price, so divide it out.
+    const sku: string = orderItem.SellerSKU ?? `UNKNOWN-${orderItem.OrderItemId ?? ""}`
+    const asin: string | null = orderItem.ASIN ?? null
+    const title: string = orderItem.Title ?? sku
+    const quantity: number = orderItem.QuantityOrdered ?? 1
+    const lineTotal: number = orderItem.ItemPrice?.Amount !== undefined ? Number(orderItem.ItemPrice.Amount) : 0
+    const unitPrice: number = quantity > 0 ? lineTotal / quantity : lineTotal
 
     const mapping = await findOrCreateMapping(admin, businessId, connectionId, marketplaceId, sku, asin, title)
     if (mapping.mapping_status !== "mapped") anyUnmapped = true
