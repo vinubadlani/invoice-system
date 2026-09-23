@@ -52,6 +52,10 @@ export async function callSpApi<T>(params: {
       continue
     }
 
-    throw new SpApiError(response.status, `SP-API request to ${params.path} failed with status ${response.status}`)
+    const bodyText = await response.text().catch(() => "")
+    throw new SpApiError(
+      response.status,
+      `SP-API request to ${params.path} failed with status ${response.status}: ${bodyText.slice(0, 500)}`
+    )
   }
 }
