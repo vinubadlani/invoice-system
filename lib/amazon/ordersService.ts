@@ -15,6 +15,20 @@ import { logAmazonEvent } from "./logger"
 // and fields are PascalCase — see the ORDER FIELD MAPPING comments below.
 const ORDERS_API_PATH = "/orders/v0/orders"
 
+// Amazon's Orders API "static" sandbox does NOT accept real query values —
+// it only recognizes a fixed set of magic trigger strings (documented in
+// the ordersV0.json model's x-amzn-api-sandbox test cases) and ignores
+// everything else, replying with the same generic
+// InvalidInput/"Could not match input arguments" for any input it doesn't
+// recognize. TEST_CASE_200 is the only non-paginated "happy path" case.
+// Crucially, the /orderItems sandbox trigger is independent of the order
+// IDs the /orders sandbox case returns — it only responds to the literal
+// orderId "TEST_CASE_200", never a real-looking AmazonOrderId — so sandbox
+// mode has to special-case both calls. None of this applies in production.
+const SANDBOX_ORDERS_CREATED_AFTER_TRIGGER = "TEST_CASE_200"
+const SANDBOX_MARKETPLACE_ID = "ATVPDKIKX0DER"
+const SANDBOX_ORDER_ITEMS_TRIGGER_ID = "TEST_CASE_200"
+
 const MAX_PAGES_PER_SYNC = 5
 const MAX_ORDER_DETAIL_CALLS_PER_SYNC = 100
 const INITIAL_BACKFILL_DAYS = 30
@@ -51,6 +65,7 @@ export async function syncOrdersForConnection(connectionId: string, businessId: 
   }
 
   const baseUrl = getSpApiBaseUrl(row.region, row.environment)
+  const isSandbox = row.environment === "sandbox"
   const createdAfter =
     row.last_successful_sync_at ?? new Date(Date.now() - INITIAL_BACKFILL_DAYS * 24 * 60 * 60 * 1000).toISOString()
 
@@ -65,8 +80,12 @@ export async function syncOrdersForConnection(connectionId: string, businessId: 
         path: ORDERS_API_PATH,
         accessToken,
         query: {
-          MarketplaceIds: row.marketplace_id,
-          CreatedAfter: paginationToken ? undefined : createdAfter,
+          MarketplaceIds: isSandbox ? SANDBOX_MARKETPLACE_ID : row.marketplace_id,
+          CreatedAfter: paginationToken
+            ? undefined
+            : isSandbox
+              ? SANDBOX_ORDERS_CREATED_AFTER_TRIGGER
+              : createdAfter,
           NextToken: paginationToken,
           MaxResultsPerPage: "50",
         },
@@ -86,10 +105,11 @@ export async function syncOrdersForConnection(connectionId: string, businessId: 
         try {
           // The list summary already has status/total/dates; only the line
           // items need a separate call (v0 has no "get full order" endpoint
-          // that includes items — only /orderItems).
+          // that includes items — only /orderItems). In sandbox, the
+          // orderItems trigger is independent of the (fake) order ID above.
           const itemsResult = await callSpApi<any>({
             baseUrl,
-            path: `${ORDERS_API_PATH}/${encodeURIComponent(orderId)}/orderItems`,
+            path: `${ORDERS_API_PATH}/${encodeURIComponent(isSandbox ? SANDBOX_ORDER_ITEMS_TRIGGER_ID : orderId)}/orderItems`,
             accessToken,
           })
           const orderItems = itemsResult?.payload?.OrderItems ?? []

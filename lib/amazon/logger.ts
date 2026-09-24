@@ -14,6 +14,11 @@ type AmazonLogEvent =
   | "order_sync_completed"
   | "order_sync_failed"
   | "product_sync_failed"
+  | "raw_import_started"
+  | "raw_import_completed"
+  | "raw_import_order_failed"
+  | "raw_import_items_failed"
+  | "raw_import_inventory_failed"
 
 export function logAmazonEvent(
   event: AmazonLogEvent,

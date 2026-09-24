@@ -29,6 +29,7 @@ import {
   SwitchCamera,
   Receipt,
   ChevronDown,
+  Globe,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -63,6 +64,12 @@ const navigationSections = [
       { name: "Purchases", href: "/purchases", icon: FileText },
       { name: "Payments", href: "/payments", icon: CreditCard },
       { name: "Expenses", href: "/expenses", icon: Receipt },
+    ]
+  },
+  {
+    title: "E-commerce",
+    items: [
+      { name: "E-commerce", href: "/ecommerce", icon: Globe },
     ]
   },
   {

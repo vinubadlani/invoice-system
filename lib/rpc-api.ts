@@ -284,5 +284,17 @@ export const rpcApi = {
       p_item_id: itemId,
       p_mapping_status: status,
     }),
+    getRawOrders: (businessId: string, connectionId?: string | null) => rpcCall<any[]>("rpc_get_amazon_raw_orders", {
+      p_business_id: businessId,
+      p_connection_id: connectionId || null,
+    }),
+    getRawOrderItems: (businessId: string, connectionId?: string | null) => rpcCall<any[]>("rpc_get_amazon_raw_order_items", {
+      p_business_id: businessId,
+      p_connection_id: connectionId || null,
+    }),
+    getRawInventory: (businessId: string, connectionId?: string | null) => rpcCall<any[]>("rpc_get_amazon_raw_inventory", {
+      p_business_id: businessId,
+      p_connection_id: connectionId || null,
+    }),
   },
 }
