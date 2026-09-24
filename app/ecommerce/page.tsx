@@ -139,14 +139,14 @@ export default function EcommercePage() {
     setFetching(true)
     setFetchProgress(null)
     const totals = { ordersFetched: 0, orderItemsFetched: 0, inventoryFetched: 0, inventoryError: null as string | null }
-    const MAX_ROUNDS = 40 // safety cap — ~2 pages/round, so up to ~4000 orders per click
+    const MAX_ROUNDS = 80 // safety cap — 1 (small) page/round, so up to ~1200 orders per click
+    let resumeToken: string | undefined
     try {
       const client = getSupabaseClient()
       const { data: sessionData } = await client.auth.getSession()
       const accessToken = sessionData?.session?.access_token
       if (!accessToken) throw new Error("Not signed in")
 
-      let resumeToken: string | undefined
       let round = 0
       do {
         round += 1
@@ -156,7 +156,19 @@ export default function EcommercePage() {
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
           body: JSON.stringify({ businessId, connectionId: selectedConnectionId, resumeToken }),
         })
-        const data = await response.json()
+
+        // A platform-level timeout/error returns an HTML/plain-text body,
+        // not JSON — parse defensively so that shows as a clear message
+        // instead of a raw "Unexpected token" parse error.
+        const rawBody = await response.text()
+        let data: any
+        try {
+          data = JSON.parse(rawBody)
+        } catch {
+          throw new Error(
+            `Amazon fetch timed out partway through (round ${round}). ${totals.ordersFetched} orders were saved before that — click "Fetch from Amazon" again to continue.`
+          )
+        }
         if (!response.ok) throw new Error(data.error || "Fetch from Amazon failed")
 
         totals.ordersFetched += data.ordersFetched || 0
@@ -172,10 +184,12 @@ export default function EcommercePage() {
           totals.inventoryError ? `. Inventory: ${totals.inventoryError}` : `, ${totals.inventoryFetched} inventory items`
         }${resumeToken ? " (more orders remain — click Fetch again to continue)" : ""}.`,
       })
-      await loadRawData(selectedConnectionId)
     } catch (error: any) {
       toast({ title: "Fetch failed", description: error?.message || "Please try again later", variant: "destructive" })
     } finally {
+      // Whatever made it into the database before a failure (each order
+      // commits individually) should still show up, so always refresh.
+      await loadRawData(selectedConnectionId)
       setFetching(false)
       setFetchProgress(null)
     }

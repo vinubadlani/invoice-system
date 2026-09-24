@@ -21,12 +21,14 @@ const SANDBOX_MARKETPLACE_ID = "ATVPDKIKX0DER"
 const SANDBOX_ORDER_ITEMS_TRIGGER_ID = "TEST_CASE_200"
 
 // A single serverless invocation can only do so much work before hitting
-// its execution timeout — each order costs a full extra /orderItems call,
-// so this is deliberately small. "Fetch all orders" is achieved by the
-// caller looping on `nextToken` (see the raw-import API route and the
-// E-commerce page), not by raising this — a fixed page cap only ever
-// fetches the same first N orders forever if nothing resumes it.
-const MAX_PAGES_PER_CALL = 2
+// its execution timeout — each order costs a full extra, sequential
+// /orderItems call (up to MAX_RESULTS_PER_PAGE of them per page, back to
+// back), which is slow enough that even one 50-order page can time out.
+// "Fetch all orders" is achieved by the caller looping on `nextToken`
+// (see the raw-import API route and the E-commerce page) across many
+// small, fast rounds — not by raising these and hoping one round finishes.
+const MAX_PAGES_PER_CALL = 1
+const MAX_RESULTS_PER_PAGE = "15"
 // How far back the FIRST fetch (no resumeToken yet) looks. Long enough to
 // cover "all orders" for a normal seller without hitting Amazon's per-call
 // timeout; safe to extend further since NextToken-based paging doesn't
@@ -79,7 +81,7 @@ export async function importRawAmazonData(
         // (no token yet, whether this is the first call or a resume).
         CreatedAfter: paginationToken ? undefined : isSandbox ? SANDBOX_ORDERS_CREATED_AFTER_TRIGGER : createdAfter,
         NextToken: paginationToken,
-        MaxResultsPerPage: "50",
+        MaxResultsPerPage: MAX_RESULTS_PER_PAGE,
       },
     })
 
