@@ -32,6 +32,7 @@ create table if not exists public.amazon_raw_orders (
 
 alter table public.amazon_raw_orders enable row level security;
 
+drop policy if exists amazon_raw_orders_select_own_business on public.amazon_raw_orders;
 create policy amazon_raw_orders_select_own_business on public.amazon_raw_orders
   for select
   using (
@@ -65,6 +66,7 @@ create table if not exists public.amazon_raw_order_items (
 
 alter table public.amazon_raw_order_items enable row level security;
 
+drop policy if exists amazon_raw_order_items_select_own_business on public.amazon_raw_order_items;
 create policy amazon_raw_order_items_select_own_business on public.amazon_raw_order_items
   for select
   using (
@@ -101,6 +103,7 @@ create table if not exists public.amazon_raw_inventory (
 
 alter table public.amazon_raw_inventory enable row level security;
 
+drop policy if exists amazon_raw_inventory_select_own_business on public.amazon_raw_inventory;
 create policy amazon_raw_inventory_select_own_business on public.amazon_raw_inventory
   for select
   using (
