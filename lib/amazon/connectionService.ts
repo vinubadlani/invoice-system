@@ -49,6 +49,13 @@ export async function upsertConnection(params: {
         token_auth_tag: encrypted.authTag,
         last_error: null,
         disconnected_at: null,
+        // Reset sync bookkeeping on every (re)connect — onConflict only
+        // updates listed columns, so without this a reconnect (e.g.
+        // sandbox -> production) would silently reuse last_successful_sync_at
+        // from a completely different environment's sync as the next
+        // CreatedAfter cutoff, instead of doing a fresh backfill.
+        last_sync_at: null,
+        last_successful_sync_at: null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "business_id,seller_id,marketplace_id" }

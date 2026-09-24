@@ -66,8 +66,12 @@ export async function syncOrdersForConnection(connectionId: string, businessId: 
 
   const baseUrl = getSpApiBaseUrl(row.region, row.environment)
   const isSandbox = row.environment === "sandbox"
-  const createdAfter =
-    row.last_successful_sync_at ?? new Date(Date.now() - INITIAL_BACKFILL_DAYS * 24 * 60 * 60 * 1000).toISOString()
+  // Postgres/PostgREST return timestamptz as "...+00:00", not the "...Z"
+  // suffix Amazon's strict ISO8601 parser requires ("timestamp must follow
+  // ISO8601") — always re-normalize through Date, never pass the raw value.
+  const createdAfter = row.last_successful_sync_at
+    ? new Date(row.last_successful_sync_at).toISOString()
+    : new Date(Date.now() - INITIAL_BACKFILL_DAYS * 24 * 60 * 60 * 1000).toISOString()
 
   try {
     let paginationToken: string | undefined
