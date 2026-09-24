@@ -20,17 +20,32 @@ const SANDBOX_ORDERS_CREATED_AFTER_TRIGGER = "TEST_CASE_200"
 const SANDBOX_MARKETPLACE_ID = "ATVPDKIKX0DER"
 const SANDBOX_ORDER_ITEMS_TRIGGER_ID = "TEST_CASE_200"
 
-const MAX_PAGES = 5
-const INITIAL_BACKFILL_DAYS = 30
+// A single serverless invocation can only do so much work before hitting
+// its execution timeout — each order costs a full extra /orderItems call,
+// so this is deliberately small. "Fetch all orders" is achieved by the
+// caller looping on `nextToken` (see the raw-import API route and the
+// E-commerce page), not by raising this — a fixed page cap only ever
+// fetches the same first N orders forever if nothing resumes it.
+const MAX_PAGES_PER_CALL = 2
+// How far back the FIRST fetch (no resumeToken yet) looks. Long enough to
+// cover "all orders" for a normal seller without hitting Amazon's per-call
+// timeout; safe to extend further since NextToken-based paging doesn't
+// depend on this once the first page is fetched.
+const INITIAL_BACKFILL_DAYS = 1095 // ~3 years
 
 export type RawImportSummary = {
   ordersFetched: number
   orderItemsFetched: number
   inventoryFetched: number
   inventoryError: string | null
+  nextToken?: string
 }
 
-export async function importRawAmazonData(connectionId: string, businessId: string): Promise<RawImportSummary> {
+export async function importRawAmazonData(
+  connectionId: string,
+  businessId: string,
+  resumeToken?: string
+): Promise<RawImportSummary> {
   const admin = getSupabaseAdminClient()
   const summary: RawImportSummary = { ordersFetched: 0, orderItemsFetched: 0, inventoryFetched: 0, inventoryError: null }
 
@@ -48,7 +63,7 @@ export async function importRawAmazonData(connectionId: string, businessId: stri
   const marketplaceId = isSandbox ? SANDBOX_MARKETPLACE_ID : row.marketplace_id
 
   // --- Orders + line items -------------------------------------------------
-  let paginationToken: string | undefined
+  let paginationToken: string | undefined = resumeToken
   let page = 0
   const createdAfter = new Date(Date.now() - INITIAL_BACKFILL_DAYS * 24 * 60 * 60 * 1000).toISOString()
 
@@ -59,6 +74,9 @@ export async function importRawAmazonData(connectionId: string, businessId: stri
       accessToken,
       query: {
         MarketplaceIds: marketplaceId,
+        // CreatedAfter and NextToken are mutually exclusive on this
+        // endpoint — only send CreatedAfter on the very first page ever
+        // (no token yet, whether this is the first call or a resume).
         CreatedAfter: paginationToken ? undefined : isSandbox ? SANDBOX_ORDERS_CREATED_AFTER_TRIGGER : createdAfter,
         NextToken: paginationToken,
         MaxResultsPerPage: "50",
@@ -134,55 +152,67 @@ export async function importRawAmazonData(connectionId: string, businessId: stri
     }
 
     page += 1
-  } while (paginationToken && page < MAX_PAGES)
+  } while (paginationToken && page < MAX_PAGES_PER_CALL)
+
+  // Amazon had more pages than this single invocation could fetch — hand
+  // the token back so the caller can immediately continue from here
+  // instead of restarting from CreatedAfter (which would just re-fetch
+  // the same first pages forever).
+  if (paginationToken) {
+    summary.nextToken = paginationToken
+  }
 
   // --- FBA inventory (best-effort — a failure here must not lose the
-  // orders/items already imported above) ------------------------------------
-  try {
-    const inventoryResult = await callSpApi<any>({
-      baseUrl,
-      path: FBA_INVENTORY_PATH,
-      accessToken,
-      query: {
-        granularityType: "Marketplace",
-        granularityId: marketplaceId,
-        marketplaceIds: marketplaceId,
-        details: "true",
-      },
-    })
-
-    const summaries: any[] = inventoryResult?.payload?.inventorySummaries ?? []
-    const nowIso = new Date().toISOString()
-
-    for (const item of summaries) {
-      const sku: string | undefined = item?.sellerSku
-      if (!sku) continue
-
-      const { error } = await admin.from("amazon_raw_inventory").upsert(
-        {
-          business_id: businessId,
-          amazon_connection_id: connectionId,
-          seller_sku: sku,
-          asin: item.asin ?? null,
-          condition: item.condition ?? null,
-          marketplace_id: marketplaceId,
-          total_quantity: item.totalQuantity ?? null,
-          fulfillable_quantity: item.inventoryDetails?.fulfillableQuantity ?? null,
-          raw_payload: item,
-          fetched_at: nowIso,
-          updated_at: nowIso,
+  // orders/items already imported above). Only on the first call of a
+  // fetch run — no point re-fetching the whole inventory snapshot on every
+  // pagination continuation. -------------------------------------------
+  if (!resumeToken) {
+    try {
+      const inventoryResult = await callSpApi<any>({
+        baseUrl,
+        path: FBA_INVENTORY_PATH,
+        accessToken,
+        query: {
+          granularityType: "Marketplace",
+          granularityId: marketplaceId,
+          marketplaceIds: marketplaceId,
+          details: "true",
         },
-        { onConflict: "business_id,amazon_connection_id,seller_sku" }
-      )
-      if (!error) summary.inventoryFetched += 1
+      })
+
+      const summaries: any[] = inventoryResult?.payload?.inventorySummaries ?? []
+      const nowIso = new Date().toISOString()
+
+      for (const item of summaries) {
+        const sku: string | undefined = item?.sellerSku
+        if (!sku) continue
+
+        const { error } = await admin.from("amazon_raw_inventory").upsert(
+          {
+            business_id: businessId,
+            amazon_connection_id: connectionId,
+            seller_sku: sku,
+            asin: item.asin ?? null,
+            condition: item.condition ?? null,
+            marketplace_id: marketplaceId,
+            total_quantity: item.totalQuantity ?? null,
+            fulfillable_quantity: item.inventoryDetails?.fulfillableQuantity ?? null,
+            raw_payload: item,
+            fetched_at: nowIso,
+            updated_at: nowIso,
+          },
+          { onConflict: "business_id,amazon_connection_id,seller_sku" }
+        )
+        if (!error) summary.inventoryFetched += 1
+      }
+    } catch (err: any) {
+      // FBA Inventory needs the separate "Amazon Fulfillment" SP-API role and
+      // only ever covers Fulfilled-by-Amazon stock, never self/merchant-
+      // fulfilled listings — an empty or failed result here is expected for
+      // an MFN-only seller or an app without that role, not a bug.
+      summary.inventoryError = err?.message ?? "Inventory fetch failed"
+      logAmazonEvent("raw_import_inventory_failed", { businessId, connectionId, reason: summary.inventoryError ?? undefined })
     }
-  } catch (err: any) {
-    // FBA Inventory needs the separate "Amazon Fulfillment" SP-API role and
-    // only ever covers Fulfilled-by-Amazon stock, never self/merchant-
-    // fulfilled listings — an empty or failed result here is expected for
-    // an MFN-only seller or an app without that role, not a bug.
-    summary.inventoryError = err?.message ?? "Inventory fetch failed"
-    logAmazonEvent("raw_import_inventory_failed", { businessId, connectionId, reason: summary.inventoryError ?? undefined })
   }
 
   logAmazonEvent("raw_import_completed", { businessId, connectionId, reason: JSON.stringify(summary) })

@@ -149,6 +149,7 @@ export const rpcApi = {
       p_status: payload.status || "draft",
       p_due_date: payload.due_date || null,
       p_payment_method: payload.payment_method || "Cash",
+      p_source: payload.source || "manual",
     }),
     update: (id: string, payload: any) => rpcCall<boolean>("rpc_update_invoice", {
       p_id: id,
@@ -295,6 +296,25 @@ export const rpcApi = {
     getRawInventory: (businessId: string, connectionId?: string | null) => rpcCall<any[]>("rpc_get_amazon_raw_inventory", {
       p_business_id: businessId,
       p_connection_id: connectionId || null,
+    }),
+    linkRawOrderInvoice: (rawOrderId: string, invoiceId: string) => rpcCall<boolean>("rpc_link_amazon_raw_order_invoice", {
+      p_raw_order_id: rawOrderId,
+      p_invoice_id: invoiceId,
+    }),
+    upsertSkuMapping: (payload: {
+      connectionId: string
+      amazonSku: string
+      amazonAsin?: string | null
+      title?: string | null
+      itemId?: string | null
+      status?: "mapped" | "unmapped" | "ignored"
+    }) => rpcCall<any>("rpc_upsert_amazon_sku_mapping", {
+      p_connection_id: payload.connectionId,
+      p_amazon_sku: payload.amazonSku,
+      p_amazon_asin: payload.amazonAsin || null,
+      p_title: payload.title || null,
+      p_item_id: payload.itemId || null,
+      p_mapping_status: payload.status || "mapped",
     }),
   },
 }
