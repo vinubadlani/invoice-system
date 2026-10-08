@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from "react"
 import Papa from "papaparse"
 import { supabase, getSupabaseClient } from "@/lib/supabase"
+import { useOptimizedData } from "@/lib/cache-store"
 import { Upload, FileText, Download, CheckCircle, XCircle, AlertCircle, Users, Package, Receipt, CreditCard, TrendingUp, DollarSign, ShoppingCart, Building2, Plus, Edit2, Check, Trash2, Eye, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -54,7 +55,10 @@ export default function UploadPage() {
   const [existingParties, setExistingParties] = useState<any[]>([])
   const [existingItems, setExistingItems] = useState<any[]>([])
   const [processing, setProcessing] = useState(false)
+  const [selectedType, setSelectedType] = useState<string>("auto")
+  const [exporting, setExporting] = useState(false)
   const { toast } = useToast()
+  const { clearCache } = useOptimizedData()
 
   useEffect(() => {
     const storedBusiness = localStorage.getItem("selectedBusiness")
@@ -70,22 +74,56 @@ export default function UploadPage() {
       const client = getSupabaseClient()
       if (!client) return
 
-      // Load existing parties
-      const { data: parties } = await client
-        .from('parties')
-        .select('id, name, type')
-        .eq('business_id', businessId)
-      
-      // Load existing items
-      const { data: items } = await client
-        .from('items')
-        .select('id, name, sales_price')
-        .eq('business_id', businessId)
+      const [parties, items] = await Promise.all([
+        fetchAllRows(client, 'parties', 'id, name, type', businessId),
+        fetchAllRows(client, 'items', 'id, name, sales_price', businessId),
+      ])
 
-      setExistingParties(parties || [])
-      setExistingItems(items || [])
+      setExistingParties(parties)
+      setExistingItems(items)
     } catch (error) {
       console.error("Error loading existing data:", error)
+    }
+  }
+
+  // The app's RPC-backed client returns every row for the business (no row cap)
+  const fetchAllRows = async (client: any, table: string, columns: string, bizId: string) => {
+    const { data, error } = await client.from(table).select(columns).eq('business_id', bizId)
+    if (error) throw error
+    return (data || []) as any[]
+  }
+
+  const EXPORT_COLUMNS: Record<string, string[]> = {
+    parties: ['id', 'name', 'mobile', 'email', 'gstin', 'pan', 'type', 'opening_balance', 'balance_type', 'address', 'city', 'state', 'pincode'],
+    items: ['id', 'name', 'code', 'hsn_code', 'gst_percent', 'unit', 'sales_price', 'purchase_price', 'opening_stock', 'description'],
+  }
+
+  const handleExportCurrent = async (type: string) => {
+    if (!businessId) {
+      toast({ title: "No business selected", description: "Please select a business first", variant: "destructive" })
+      return
+    }
+    setExporting(true)
+    try {
+      const client = getSupabaseClient()
+      if (!client) throw new Error("Database connection unavailable")
+      const cols = EXPORT_COLUMNS[type]
+      const rows = await fetchAllRows(client, type, cols.join(', '), businessId)
+      const csv = Papa.unparse({ fields: cols, data: rows.map(r => cols.map(c => r[c] ?? '')) })
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${type}_current_${new Date().toISOString().split('T')[0]}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast({ title: "Export ready", description: `${rows.length} ${type} exported. Edit the file (keep the id column) and upload it back to update.` })
+    } catch (error: any) {
+      toast({ title: "Export failed", description: error.message, variant: "destructive" })
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -309,6 +347,8 @@ export default function UploadPage() {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
+      // Excel/our export may prefix a BOM or pad headers; normalise so "id" etc. always match
+      transformHeader: (h: string) => h.replace(/^\uFEFF/, '').trim(),
       complete: (results) => {
         setUploadProgress(50)
         const data = results.data as any[]
@@ -324,7 +364,7 @@ export default function UploadPage() {
 
         // Detect CSV type based on headers
         const headers = Object.keys(data[0])
-        const type = detectCsvType(headers)
+        const type = selectedType !== 'auto' ? selectedType : detectCsvType(headers)
         
         if (type === 'unknown') {
           setUploadResult({
@@ -413,6 +453,23 @@ export default function UploadPage() {
     }
   }
 
+  // Match an uploaded row to an existing party/item: by id first (exported files), else by name.
+  // Never lets the same name be created twice.
+  const findExistingMaster = (kind: 'parties' | 'items', row: any, list?: any[]) => {
+    const pool = list || (kind === 'parties' ? existingParties : existingItems)
+    const id = row.id?.toString().trim()
+    if (id) {
+      const byId = pool.find(r => r.id === id)
+      if (byId) return byId
+    }
+    const name = row.name?.toString().trim().toLowerCase()
+    if (!name) return undefined
+    return pool.find(r =>
+      r.name?.toLowerCase().trim() === name &&
+      (kind === 'items' || !row.type || r.type === row.type)
+    )
+  }
+
   const validateRow = (row: any, type: string) => {
     const errors: string[] = []
     const warnings: string[] = []
@@ -423,10 +480,16 @@ export default function UploadPage() {
       if (row.mobile && !/^\d{10}$/.test(row.mobile.replace(/\D/g, ''))) {
         warnings.push('Mobile number should be 10 digits')
       }
+      if (row.name?.trim()) {
+        warnings.push(findExistingMaster('parties', row) ? 'Existing party - will be updated' : 'New party - will be created')
+      }
     } else if (type === 'items') {
       if (!row.name?.trim()) errors.push('Name is required')
       if (!row.sales_price || isNaN(parseFloat(row.sales_price))) {
         errors.push('Valid sales price is required')
+      }
+      if (row.name?.trim()) {
+        warnings.push(findExistingMaster('items', row) ? 'Existing item - will be updated' : 'New item - will be created')
       }
     } else if (type === 'sales' || type === 'sales-entry') {
       if (!row.invoice_number?.trim()) errors.push('Invoice number is required')
@@ -634,25 +697,62 @@ export default function UploadPage() {
       if (!client) throw new Error("Database connection unavailable")
 
       let imported = 0
+      let updated = 0
+      let failed = 0
+      let firstError = ''
 
       for (const row of validRows) {
         try {
-          if (reviewData.type === 'parties') {
-            await client.from("parties").insert([{
-              ...row.edited,
-              business_id: businessId,
-              opening_balance: parseFloat(row.edited.opening_balance) || 0
-            }])
-          } else if (reviewData.type === 'items') {
-            await client.from("items").insert([{
-              ...row.edited,
-              business_id: businessId,
-              sales_price: parseFloat(row.edited.sales_price) || 0,
-              purchase_price: parseFloat(row.edited.purchase_price) || 0,
-              gst_percent: isNaN(parseFloat(row.edited.gst_percent)) ? 18 : parseFloat(row.edited.gst_percent),
-              opening_stock: parseFloat(row.edited.opening_stock) || 0
-            }])
-          } else if (reviewData.type === 'sales-entry') {
+          if (reviewData.type === 'parties' || reviewData.type === 'items') {
+            const kind = reviewData.type as 'parties' | 'items'
+            const e = row.edited
+            const num = (v: any) => parseFloat(v)
+            // Only touch columns that are present in the file, so a partial file never wipes other fields
+            const has = (k: string) => e[k] !== undefined
+            const payload: any = {}
+            if (kind === 'parties') {
+              for (const k of ['name', 'mobile', 'email', 'gstin', 'pan', 'type', 'balance_type', 'address', 'city', 'state', 'pincode']) {
+                if (has(k)) payload[k] = (e[k] ?? '').toString().trim()
+              }
+              if (has('opening_balance')) payload.opening_balance = num(e.opening_balance) || 0
+            } else {
+              for (const k of ['name', 'code', 'hsn_code', 'unit', 'description']) {
+                if (has(k)) payload[k] = (e[k] ?? '').toString().trim()
+              }
+              if (has('sales_price')) payload.sales_price = num(e.sales_price) || 0
+              if (has('purchase_price')) payload.purchase_price = num(e.purchase_price) || 0
+              if (has('gst_percent')) payload.gst_percent = isNaN(num(e.gst_percent)) ? 18 : num(e.gst_percent)
+              if (has('opening_stock')) payload.opening_stock = Math.round(num(e.opening_stock) || 0)
+              if (payload.code === '') delete payload.code
+              if (payload.unit === '') delete payload.unit
+            }
+
+            const list = kind === 'parties' ? existingParties : existingItems
+            const match = findExistingMaster(kind, e, list)
+            if (match) {
+              const { error } = await client.from(kind).update(payload).eq('id', match.id).eq('business_id', businessId)
+              if (error) throw error
+              Object.assign(match, payload)
+              updated++
+            } else {
+              if (kind === 'parties') {
+                payload.mobile = payload.mobile || ''
+                payload.type = payload.type || 'Debtor'
+                payload.balance_type = payload.balance_type || 'To Collect'
+                for (const k of ['address', 'city', 'state', 'pincode']) payload[k] = payload[k] || ''
+              } else {
+                payload.code = payload.code || `ITM-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`.toUpperCase()
+                payload.unit = payload.unit || 'pcs'
+              }
+              const { data: created, error } = await client.from(kind).insert([{ ...payload, business_id: businessId }]).select('id, name, type').single()
+              if (error) throw error
+              // Track it so a repeated name later in the same file updates instead of duplicating
+              list.push({ ...payload, ...(created as any) })
+              imported++
+            }
+            continue
+          }
+          if (reviewData.type === 'sales-entry') {
             // Create missing customer if needed
             const customerName = row.edited.party_name
             if (customerName) {
@@ -797,15 +897,23 @@ export default function UploadPage() {
             }])
           }
           imported++
-        } catch (error) {
+        } catch (error: any) {
           console.error("Error importing row:", error)
+          failed++
+          if (!firstError) firstError = error?.message || String(error)
         }
       }
 
+      const isMaster = reviewData.type === 'parties' || reviewData.type === 'items'
+      // Other pages read from an in-memory cache (10 min) - drop it so edited stock/prices show immediately
+      clearCache()
+      if (businessId) loadExistingData(businessId)
       setUploadResult({
-        success: true,
-        message: `Successfully imported ${imported} ${reviewData.type} records!`,
-        details: { [reviewData.type]: imported }
+        success: imported + updated > 0,
+        message: isMaster
+          ? `${imported} created, ${updated} updated${failed ? `, ${failed} failed (${firstError})` : ''}`
+          : `Successfully imported ${imported} ${reviewData.type} records!`,
+        details: isMaster ? { created: imported, updated, failed } : { [reviewData.type]: imported }
       })
 
       setShowReviewDialog(false)
@@ -813,7 +921,7 @@ export default function UploadPage() {
 
       toast({
         title: "Import Successful",
-        description: `${imported} records have been imported successfully`,
+        description: isMaster ? `${imported} created, ${updated} updated` : `${imported} records have been imported successfully`,
       })
 
     } catch (error) {
@@ -908,6 +1016,34 @@ export default function UploadPage() {
                 </p>
               </CardHeader>
               <CardContent className="p-8">
+                <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">What do you want to upload?</label>
+                    <Select value={selectedType} onValueChange={setSelectedType}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">Auto-detect from file</SelectItem>
+                        <SelectItem value="parties">Parties</SelectItem>
+                        <SelectItem value="items">Items / Inventory</SelectItem>
+                        <SelectItem value="sales-entry">Sales (with payment)</SelectItem>
+                        <SelectItem value="sales">Sales</SelectItem>
+                        <SelectItem value="purchases">Purchases</SelectItem>
+                        <SelectItem value="expenses">Expenses</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {(selectedType === 'parties' || selectedType === 'items') && (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                      <p className="text-sm text-blue-800 mb-2">
+                        Download your current {selectedType}, edit the file, and upload it back. Rows are matched by the <strong>id</strong> column (or by name), so existing records are updated and never duplicated.
+                      </p>
+                      <Button variant="outline" size="sm" disabled={exporting} onClick={() => handleExportCurrent(selectedType)}>
+                        <Download className="h-4 w-4 mr-2" />
+                        {exporting ? 'Preparing...' : `Download current ${selectedType}`}
+                      </Button>
+                    </div>
+                  )}
+                </div>
                 <div
                   className={`border-2 border-dashed rounded-xl p-12 text-center transition-all duration-300 ${
                     dragActive

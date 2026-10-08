@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { supabase, getSupabaseClient, insertData, updateData } from "@/lib/supabase"
 import { useOptimizedData } from "@/lib/cache-store"
+import { rpcApi } from "@/lib/rpc-api"
 import { useBusiness } from "@/app/context/BusinessContext"
 import { Plus, Edit, Trash2, Save, X, Loader2, Search, Calculator, Receipt, FileText, Building2, Upload, Download, CheckCircle, XCircle, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -110,23 +111,13 @@ interface Invoice {
   type: "sales" | "purchase"
 }
 
-const SOFTWARE_DEFAULT_TERMS = [
-  "1. Subscription fees are non-refundable.",
-  "2. Support available during subscription period.",
-  "3. License is non-transferable.",
-  "4. All disputes subject to Indore jurisdiction.",
-].join("\n")
-
-const DEFAULT_INVOICE_FOOTER = [
-  "Thank you for choosing WPlus.",
-  "For support: help.wplus@gmail.com | +91 8435232987",
-].join("\n")
+type InvoiceDefaults = { invoice_terms: string; invoice_footer: string }
 
 function getDefaultDueDate() {
   return new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 }
 
-function createInitialFormData(invoiceNo = "") {
+function createInitialFormData(invoiceNo = "", defaults: InvoiceDefaults = { invoice_terms: "", invoice_footer: "" }) {
   return {
     invoice_no: invoiceNo,
     date: new Date().toISOString().split('T')[0],
@@ -142,8 +133,8 @@ function createInitialFormData(invoiceNo = "") {
     payment_ifsc_code: "",
     payment_upi_id: "",
     payment_qr_code_url: "",
-    invoice_terms: SOFTWARE_DEFAULT_TERMS,
-    invoice_footer: DEFAULT_INVOICE_FOOTER,
+    invoice_terms: defaults.invoice_terms,
+    invoice_footer: defaults.invoice_footer,
   }
 }
 
@@ -197,6 +188,8 @@ export default function SalesEntry() {
   const [items, setItems] = useState<Item[]>([])
   const [business, setBusiness] = useState<Business | null>(null)
 
+  const [invoiceDefaults, setInvoiceDefaults] = useState<InvoiceDefaults>({ invoice_terms: "", invoice_footer: "" })
+  const [savingDefaults, setSavingDefaults] = useState(false)
   const [formData, setFormData] = useState(createInitialFormData())
   const [invoiceNoError, setInvoiceNoError] = useState<string>("")
 
@@ -607,8 +600,45 @@ export default function SalesEntry() {
     return { totalTax, subTotal, netTotal, balanceDue, roundOff, discount, otherCharges, paymentReceived }
   }, [invoiceItems, formData.round_off, formData.discount, formData.other_charges, formData.payment_received])
 
+  // Load this business's saved Terms & Footer defaults
+  useEffect(() => {
+    const businessId = contextBusiness?.id
+    if (!businessId) return
+    let cancelled = false
+    rpcApi.invoiceDefaults.get(businessId).then(({ data }) => {
+      if (cancelled) return
+      const saved = data?.[0]
+      const defaults = {
+        invoice_terms: saved?.invoice_terms || contextBusiness?.terms_conditions || "",
+        invoice_footer: saved?.invoice_footer || "",
+      }
+      setInvoiceDefaults(defaults)
+      // Prefill the open form only if the user hasn't typed anything yet
+      setFormData(prev => ({
+        ...prev,
+        invoice_terms: prev.invoice_terms || defaults.invoice_terms,
+        invoice_footer: prev.invoice_footer || defaults.invoice_footer,
+      }))
+    })
+    return () => { cancelled = true }
+  }, [contextBusiness?.id, contextBusiness?.terms_conditions])
+
+  const saveInvoiceDefaults = async () => {
+    const businessId = contextBusiness?.id
+    if (!businessId) return
+    setSavingDefaults(true)
+    const { error } = await rpcApi.invoiceDefaults.save(businessId, formData.invoice_terms, formData.invoice_footer)
+    setSavingDefaults(false)
+    if (error) {
+      toast({ title: "Error", description: error.message || "Failed to save defaults", variant: "destructive" })
+      return
+    }
+    setInvoiceDefaults({ invoice_terms: formData.invoice_terms, invoice_footer: formData.invoice_footer })
+    toast({ title: "Saved", description: "These Terms and Footer will be used for all new invoices." })
+  }
+
   const resetForm = useCallback(() => {
-    setFormData(createInitialFormData(generateInvoiceNo()))
+    setFormData(createInitialFormData(generateInvoiceNo(), invoiceDefaults))
     setInvoiceItems([])
     setItemDraftInputs({})
     setCurrentItem({ item_id: "", qty: "1", rate: "" })
@@ -630,7 +660,7 @@ export default function SalesEntry() {
       account_holder_name: "",
       opening_balance: 0,
     })
-  }, [generateInvoiceNo])
+  }, [generateInvoiceNo, invoiceDefaults])
 
   // Optimized form submission
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
@@ -830,8 +860,8 @@ export default function SalesEntry() {
       payment_ifsc_code: paymentMeta?.invoice_payment_details?.ifsc_code || '',
       payment_upi_id: paymentMeta?.invoice_payment_details?.upi_id || '',
       payment_qr_code_url: paymentMeta?.invoice_payment_details?.qr_code_url || '',
-      invoice_terms: termsMeta?.invoice_terms || SOFTWARE_DEFAULT_TERMS,
-      invoice_footer: footerMeta?.invoice_footer || DEFAULT_INVOICE_FOOTER,
+      invoice_terms: termsMeta?.invoice_terms || invoiceDefaults.invoice_terms,
+      invoice_footer: footerMeta?.invoice_footer || invoiceDefaults.invoice_footer,
     })
     setInvoiceItems(cleanItems as InvoiceItem[])
     const initialDrafts: Record<string, { rate: string; qty: string }> = {}
@@ -1664,9 +1694,9 @@ export default function SalesEntry() {
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                onClick={() => setFormData(prev => ({ ...prev, invoice_terms: SOFTWARE_DEFAULT_TERMS }))}
+                                onClick={() => setFormData(prev => ({ ...prev, invoice_terms: invoiceDefaults.invoice_terms }))}
                               >
-                                Use Software Terms
+                                Use Saved Terms
                               </Button>
                             </div>
                             <Textarea
@@ -1684,9 +1714,9 @@ export default function SalesEntry() {
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                onClick={() => setFormData(prev => ({ ...prev, invoice_footer: DEFAULT_INVOICE_FOOTER }))}
+                                onClick={() => setFormData(prev => ({ ...prev, invoice_footer: invoiceDefaults.invoice_footer }))}
                               >
-                                Use Default Footer
+                                Use Saved Footer
                               </Button>
                             </div>
                             <Textarea
@@ -1695,6 +1725,15 @@ export default function SalesEntry() {
                               rows={3}
                               placeholder="Enter invoice footer or support information"
                             />
+                          </div>
+
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-xs text-gray-500">
+                              Edit the Terms and Footer above for this invoice, or save them as your business default for all new invoices.
+                            </p>
+                            <Button type="button" size="sm" onClick={saveInvoiceDefaults} disabled={savingDefaults}>
+                              {savingDefaults ? "Saving..." : "Save as Default"}
+                            </Button>
                           </div>
                         </div>
                       </CardContent>

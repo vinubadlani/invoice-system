@@ -57,6 +57,15 @@ export const rpcApi = {
     delete: (id: string) => rpcCall<boolean>("rpc_delete_business", { p_id: id }),
   },
 
+  invoiceDefaults: {
+    get: (businessId: string) => rpcCall<{ invoice_terms: string; invoice_footer: string }[]>("rpc_get_invoice_defaults", { p_business_id: businessId }),
+    save: (businessId: string, terms: string, footer: string) => rpcCall<boolean>("rpc_save_invoice_defaults", {
+      p_business_id: businessId,
+      p_invoice_terms: terms,
+      p_invoice_footer: footer,
+    }),
+  },
+
   party: {
     getAll: (businessId: string) => rpcCall<any[]>("rpc_get_parties", { p_business_id: businessId }),
     create: (payload: any) => rpcCall<string>("rpc_create_party", {
