@@ -554,6 +554,22 @@ export default function SalesBulkUploadDialog({
       const client = getSupabaseClient()
       if (!client) throw new Error("Service unavailable")
 
+      // Load the item master fresh from the DB so GST % always matches this business's items
+      // (the `items` prop can be stale/cached). Fall back to the prop if the query fails.
+      const masterItems: any[] = [...(Array.isArray(items) ? items : [])]
+      try {
+        const { data: freshItems, error: freshErr } = await client
+          .from('items')
+          .select('*')
+          .eq('business_id', businessId)
+        if (!freshErr && freshItems) {
+          masterItems.length = 0
+          masterItems.push(...freshItems)
+        }
+      } catch (e) {
+        console.error('Failed to refresh item master, using cached items', e)
+      }
+
       // Group valid rows by invoice number
       const invoiceGroups = new Map<string, any[]>()
       validRows.forEach((row, index) => {
@@ -612,11 +628,17 @@ export default function SalesBulkUploadDialog({
 
           for (const rowData of invoiceRows) {
             // Find or create item
-            let selectedItem = items.find(i => 
-              i.name.toLowerCase() === rowData.item_name.toLowerCase()
-            )
+            const normName = (n: any) => String(n || '').trim().toLowerCase()
+            let selectedItem = masterItems.find((i: any) => normName(i.name) === normName(rowData.item_name))
 
             if (!selectedItem) {
+              // No master entry: derive GST % from the uploaded row if possible, else 18
+              const rowQty = Number(rowData.quantity) || 1
+              const rowBase = rowQty * (Number(rowData.rate) || 0)
+              const rowGst = Number(rowData.gst_amount) || 0
+              const derivedGst = rowGst > 0 && rowBase > 0
+                ? ([0, 5, 12, 18, 28].find(r => Math.abs((rowBase * r) / 100 - rowGst) <= Math.max(1, rowGst * 0.02)) ?? 18)
+                : 18
               // Create new item if it doesn't exist
               const itemData = {
                 business_id: businessId,
@@ -626,7 +648,7 @@ export default function SalesBulkUploadDialog({
                 sales_price: Number(rowData.rate) || 0,
                 purchase_price: Number(rowData.rate) * 0.8 || 0,
                 unit: 'Pcs',
-                gst_percent: 18,
+                gst_percent: derivedGst,
                 opening_stock: 0
               }
 
@@ -638,13 +660,15 @@ export default function SalesBulkUploadDialog({
 
               if (itemError) throw itemError
               selectedItem = newItem
+              masterItems.push(newItem)
             }
 
             // Calculate amounts for this item
             const quantity = Number(rowData.quantity) || 1
             const rate = Number(rowData.rate) || 0
             const itemSubtotal = quantity * rate
-            const gstPercent = selectedItem.gst_percent || 18
+            const parsedGst = Number(selectedItem.gst_percent)
+            const gstPercent = selectedItem.gst_percent === null || selectedItem.gst_percent === undefined || isNaN(parsedGst) ? 18 : parsedGst
             const itemTax = (itemSubtotal * gstPercent) / 100
 
             // Add to invoice items
