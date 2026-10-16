@@ -1,8 +1,8 @@
 ﻿"use client"
 
 import { useState, useEffect } from "react"
-import { fetchInvoices, fetchParties, queryBuilder, insertData, updateData, getCurrentUser } from "@/lib/supabase"
-import { Plus, Save, X, DollarSign, TrendingUp, TrendingDown, CreditCard, Calendar, Search, Filter, Eye, Pencil, Printer } from "lucide-react"
+import { fetchInvoices, fetchParties, queryBuilder, insertData, updateData, deleteData, getCurrentUser } from "@/lib/supabase"
+import { Plus, Save, X, DollarSign, TrendingUp, TrendingDown, CreditCard, Calendar, Search, Filter, Eye, Pencil, Printer, Upload, Trash2 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import PaymentsBulkUploadDialog from "@/components/PaymentsBulkUploadDialog"
 import AuthenticatedLayout from "@/components/AuthenticatedLayout"
 import { useToast } from "@/hooks/use-toast"
 
@@ -46,6 +47,7 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true)
   const [businessId, setBusinessId] = useState<string>("")
   const [isFormOpen, setIsFormOpen] = useState(false)
+  const [showBulkUpload, setShowBulkUpload] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
   const [saving, setSaving] = useState(false)
@@ -241,6 +243,17 @@ export default function PaymentsPage() {
     setIsFormOpen(true)
   }
 
+  const handleDeletePayment = async (payment: Payment) => {
+    if (!window.confirm(`Delete this ${payment.type} payment of ₹${payment.amount.toLocaleString("en-IN")} for ${payment.party_name}?`)) return
+    const result = await deleteData('payments', payment.id)
+    if (result.error) {
+      toast({ title: "Error", description: result.error.message || "Failed to delete payment", variant: "destructive" })
+      return
+    }
+    toast({ title: "Success", description: "Payment deleted" })
+    loadPaymentsData(businessId)
+  }
+
   const handlePrintPayment = (payment: Payment) => {
     const receiptWindow = window.open("", "_blank", "width=800,height=700")
     if (!receiptWindow) return
@@ -304,6 +317,11 @@ export default function PaymentsPage() {
               <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Payments</h1>
               <p className="text-slate-600 dark:text-slate-400">Manage cash flow and payment records</p>
             </div>
+            <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setShowBulkUpload(true)}>
+              <Upload className="h-4 w-4 mr-2" />
+              Bulk Upload
+            </Button>
             <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
               <DialogTrigger asChild>
                 <Button className="bg-blue-600 hover:bg-blue-700">
@@ -424,6 +442,7 @@ export default function PaymentsPage() {
                 </form>
               </DialogContent>
             </Dialog>
+            </div>
           </div>
 
           {/* Stats Cards */}
@@ -562,6 +581,10 @@ export default function PaymentsPage() {
                                 <Printer className="h-3.5 w-3.5 mr-1" />
                                 Print
                               </Button>
+                              <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700" onClick={() => handleDeletePayment(payment)}>
+                                <Trash2 className="h-3.5 w-3.5 mr-1" />
+                                Delete
+                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -580,6 +603,15 @@ export default function PaymentsPage() {
           </Card>
         </div>
       </div>
+
+      <PaymentsBulkUploadDialog
+        open={showBulkUpload}
+        onOpenChange={setShowBulkUpload}
+        businessId={businessId}
+        parties={parties}
+        payments={payments}
+        onUploadComplete={() => loadPaymentsData(businessId)}
+      />
     </AuthenticatedLayout>
   )
 }

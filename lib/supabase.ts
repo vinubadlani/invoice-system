@@ -641,9 +641,17 @@ export async function updateData(table: string, id: string, data: Record<string,
         await rpcExec<boolean>('rpc_update_invoice', invoiceParams)
         return normalizeMutationSuccess(true)
       }
-      case 'payments':
-        await rpcExec<boolean>('rpc_update_payment', { p_id: id, ...Object.fromEntries(Object.entries(validatedData).map(([k, v]) => [`p_${k}`, v ?? null])) })
+      case 'payments': {
+        // Only pass params rpc_update_payment accepts - extra fields (business_id, created_at, etc.)
+        // break RPC lookup, which made every payment edit fail.
+        const allowed = ['date','party_name','type','invoice_no','amount','mode','remarks']
+        const paymentParams: Record<string, any> = { p_id: id }
+        for (const key of allowed) {
+          if (key in validatedData) paymentParams[`p_${key}`] = validatedData[key] ?? null
+        }
+        await rpcExec<boolean>('rpc_update_payment', paymentParams)
         return normalizeMutationSuccess(true)
+      }
       case 'expenses':
         await rpcExec<boolean>('rpc_update_expense', { p_id: id, ...Object.fromEntries(Object.entries(validatedData).map(([k, v]) => [`p_${k}`, v ?? null])) })
         return normalizeMutationSuccess(true)
